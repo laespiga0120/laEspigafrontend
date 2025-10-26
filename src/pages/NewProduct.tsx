@@ -31,6 +31,7 @@ import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import { ProductService, ProductPayload } from "../api/productService";
 import { CategoryService } from "../api/categoryService";
+import { ProveedorService } from "../api/proveedorService";
 import { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import AssignLocationButton from "../components/AssignLocationButton";
@@ -50,6 +51,9 @@ const formSchema = z
     idCategoria: z
       .string()
       .min(1, { message: "Debe seleccionar una categoría" }),
+    idProveedor: z
+      .string()
+      .min(1, { message: "Debe seleccionar un proveedor" }),
     stock: z.coerce
       .number()
       .int()
@@ -90,6 +94,7 @@ const NewProduct = () => {
       precio: 0,
       unidadMedida: "",
       idCategoria: "",
+      idProveedor: "",
       stock: 0,
       stockMinimo: 0,
       fechaVencimiento: undefined,
@@ -103,6 +108,9 @@ const NewProduct = () => {
   const [categories, setCategories] = useState<
     { id: number; nombre: string }[]
   >([]);
+  const [proveedores, setProveedores] = useState<
+    { id: number; nombre: string }[]
+  >([]);
 
   // Cargar categorías al montar el componente
   useEffect(() => {
@@ -111,6 +119,16 @@ const NewProduct = () => {
       .catch((err) => {
         console.error("Error cargando categorías:", err);
         toast.error("No se pudieron cargar las categorías.");
+      });
+  }, []);
+
+  // Cargar proveedores al montar el componente
+  useEffect(() => {
+    ProveedorService.list()
+      .then(setProveedores)
+      .catch((err) => {
+        console.error("Error cargando proveedores:", err);
+        toast.error("No se pudieron cargar los proveedores.");
       });
   }, []);
 
@@ -137,6 +155,7 @@ const NewProduct = () => {
         marca: values.marca || "",
         descripcion: values.descripcion || "",
         idCategoria: parseInt(values.idCategoria),
+        idProveedor: parseInt(values.idProveedor),
         fechaVencimiento: values.fechaVencimiento
           ? values.fechaVencimiento.toISOString()
           : null,
@@ -270,6 +289,33 @@ const NewProduct = () => {
                               {categories.map((c) => (
                                 <SelectItem key={c.id} value={String(c.id)}>
                                   {c.nombre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="idProveedor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Proveedor *</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccione un proveedor" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {proveedores.map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.nombre}
                                 </SelectItem>
                               ))}
                             </SelectContent>

@@ -1,4 +1,16 @@
-import { FileText, BarChart3, Users, PackagePlus, Home, Menu, LogOut, MapPin, FolderOpen, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import {
+  FileText,
+  BarChart3,
+  Users,
+  PackagePlus,
+  Home,
+  Menu,
+  LogOut,
+  MapPin,
+  FolderOpen,
+  ArrowDownCircle,
+  ArrowUpCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -11,14 +23,40 @@ interface SidebarProps {
 const Sidebar = ({ activeSection }: SidebarProps) => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  
+
   const menuItems = [
     { id: "panel-principal", label: "Panel Principal", icon: Home, path: "/" },
-    { id: "nuevo-producto", label: "Nuevo producto", icon: PackagePlus, path: "/nuevo-producto" },
-    { id: "salidas", label: "Registrar Salida", icon: ArrowDownCircle, path: "/salidas" },
-    { id: "entradas", label: "Registrar Entrada", icon: ArrowUpCircle, path: "/entradas" },
-  // removed asignar-ubicacion from sidebar menu to use as modal from NewProduct
-    { id: "administrar-categorias", label: "Administrar Categorías", icon: FolderOpen, path: "/administrar-categorias" },
+    {
+      id: "nuevo-producto",
+      label: "Nuevo producto",
+      icon: PackagePlus,
+      path: "/nuevo-producto",
+    },
+    {
+      id: "salidas",
+      label: "Registrar Salida",
+      icon: ArrowDownCircle,
+      path: "/salidas",
+    },
+    {
+      id: "entradas",
+      label: "Registrar Entrada",
+      icon: ArrowUpCircle,
+      path: "/entradas",
+    },
+    // removed asignar-ubicacion from sidebar menu to use as modal from NewProduct
+    {
+      id: "administrar-categorias",
+      label: "Administrar Categorías",
+      icon: FolderOpen,
+      path: "/administrar-categorias",
+    },
+    {
+      id: "administrar-proveedores",
+      label: "Administrar Proveedores",
+      icon: Users,
+      path: "/administrar-proveedores",
+    },
     { id: "movimientos", label: "Movimientos", icon: FileText },
     { id: "reportes", label: "Reportes", icon: BarChart3, path: "/reportes" },
     { id: "usuarios", label: "Usuarios", icon: Users },
@@ -46,26 +84,26 @@ const Sidebar = ({ activeSection }: SidebarProps) => {
       <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2">
         Menú Principal
       </h2>
-      
+
       <div className="flex-1 space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
-          
+
           const ButtonContent = (
             <>
               <Icon className="w-5 h-5 flex-shrink-0" />
               <span className="flex-1 text-left">{item.label}</span>
             </>
           );
-          
+
           return item.path ? (
             <Link key={item.id} to={item.path} onClick={() => setOpen(false)}>
               <Button
                 variant={isActive ? "default" : "ghost"}
                 className={`w-full justify-start gap-3 h-11 text-sm font-medium transition-all ${
-                  isActive 
-                    ? "bg-primary text-primary-foreground shadow-sm" 
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
                     : "hover:bg-accent/60 hover:translate-x-1"
                 }`}
               >
@@ -77,8 +115,8 @@ const Sidebar = ({ activeSection }: SidebarProps) => {
               key={item.id}
               variant={isActive ? "default" : "ghost"}
               className={`w-full justify-start gap-3 h-11 text-sm font-medium transition-all ${
-                isActive 
-                  ? "bg-primary text-primary-foreground shadow-sm" 
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "hover:bg-accent/60 hover:translate-x-1"
               }`}
             >
