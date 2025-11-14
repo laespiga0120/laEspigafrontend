@@ -18,6 +18,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Search, ArrowUpDown } from "lucide-react";
 
 // Datos mock de productos
@@ -26,65 +34,112 @@ const mockProducts = [
     id: 1,
     nombre: "Arroz Blanco",
     categoria: "Granos",
+    descripcion: "Arroz blanco de grano largo, bolsa 1kg",
     stock: 150,
     stockMinimo: 50,
+    precio: 3.5,
+    marca: "La Espiga",
     ubicacion: { repisa: "A", fila: "1", nivel: "2" },
+    perecible: false,
+    lotes: [
+      { loteId: "L-AR-001", cantidad: 80 },
+      { loteId: "L-AR-002", cantidad: 70 },
+    ],
   },
   {
     id: 2,
     nombre: "Frijol Negro",
     categoria: "Granos",
+    descripcion: "Frijol negro seleccionado, bolsa 1kg",
     stock: 80,
     stockMinimo: 30,
+    precio: 4.2,
+    marca: "Buen Grano",
     ubicacion: { repisa: "A", fila: "2", nivel: "1" },
+    perecible: false,
+    lotes: [{ loteId: "L-FN-010", cantidad: 80 }],
   },
   {
     id: 3,
     nombre: "Aceite Vegetal",
     categoria: "Aceites",
+    descripcion: "Aceite vegetal 900ml",
     stock: 45,
     stockMinimo: 20,
+    precio: 7.9,
+    marca: "Sol Dorado",
     ubicacion: { repisa: "B", fila: "1", nivel: "3" },
+    perecible: false,
+    lotes: [{ loteId: "L-AV-021", cantidad: 45 }],
   },
   {
     id: 4,
     nombre: "Azúcar Blanca",
     categoria: "Endulzantes",
+    descripcion: "Azúcar blanca refinada, bolsa 1kg",
     stock: 200,
     stockMinimo: 100,
+    precio: 2.8,
+    marca: "Dulce Vida",
     ubicacion: { repisa: "C", fila: "3", nivel: "1" },
+    perecible: false,
+    lotes: [{ loteId: "L-AZ-105", cantidad: 200 }],
   },
   {
     id: 5,
     nombre: "Sal de Mesa",
     categoria: "Condimentos",
+    descripcion: "Sal de mesa yodada 1kg",
     stock: 120,
     stockMinimo: 40,
+    precio: 1.5,
+    marca: "Marina",
     ubicacion: { repisa: "C", fila: "2", nivel: "2" },
+    perecible: false,
+    lotes: [{ loteId: "L-SM-201", cantidad: 120 }],
   },
   {
     id: 6,
     nombre: "Harina de Trigo",
     categoria: "Harinas",
+    descripcion: "Harina de trigo fortificada 1kg",
     stock: 90,
     stockMinimo: 50,
+    precio: 3.0,
+    marca: "Trigal",
     ubicacion: { repisa: "B", fila: "3", nivel: "1" },
+    perecible: false,
+    lotes: [{ loteId: "L-HT-081", cantidad: 90 }],
   },
   {
     id: 7,
     nombre: "Pasta Corta",
     categoria: "Pastas",
+    descripcion: "Pasta corta 500g",
     stock: 60,
     stockMinimo: 25,
+    precio: 2.2,
+    marca: "Italiana",
     ubicacion: { repisa: "D", fila: "1", nivel: "2" },
+    perecible: false,
+    lotes: [{ loteId: "L-PC-141", cantidad: 60 }],
   },
   {
     id: 8,
     nombre: "Leche Entera",
     categoria: "Lácteos",
+    descripcion: "Leche entera UHT 1L",
     stock: 35,
     stockMinimo: 20,
+    precio: 4.8,
+    marca: "La Vaca",
     ubicacion: { repisa: "E", fila: "2", nivel: "3" },
+    perecible: true,
+    fechaVencimiento: "2026-03-15",
+    lotes: [
+      { loteId: "L-LE-301", cantidad: 20, fechaVencimiento: "2026-02-28" },
+      { loteId: "L-LE-302", cantidad: 15, fechaVencimiento: "2026-03-15" },
+    ],
   },
 ];
 
@@ -99,7 +154,13 @@ const categorias = [
   "Lácteos",
 ];
 
-type SortField = "nombre" | "categoria" | "stock" | "stockMinimo" | "ubicacion";
+type SortField =
+  | "nombre"
+  | "categoria"
+  | "precio"
+  | "stock"
+  | "stockMinimo"
+  | "ubicacion";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -108,6 +169,7 @@ const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [searchRepisa, setSearchRepisa] = useState("");
   const [searchFila, setSearchFila] = useState("");
+  const [searchColumna, setSearchColumna] = useState("");
   const [sortField, setSortField] = useState<SortField>("nombre");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
@@ -122,6 +184,34 @@ const Index = () => {
     }
   }, [navigate]);
 
+  // Opciones dinámicas para filtros dependientes
+  const repisas = Array.from(
+    new Set(mockProducts.map((p) => p.ubicacion.repisa))
+  ).sort();
+  const filas = searchRepisa
+    ? Array.from(
+        new Set(
+          mockProducts
+            .filter((p) => p.ubicacion.repisa === searchRepisa)
+            .map((p) => p.ubicacion.fila)
+        )
+      ).sort()
+    : [];
+  const columnas =
+    searchRepisa && searchFila
+      ? Array.from(
+          new Set(
+            mockProducts
+              .filter(
+                (p) =>
+                  p.ubicacion.repisa === searchRepisa &&
+                  p.ubicacion.fila === searchFila
+              )
+              .map((p) => p.ubicacion.nivel)
+          )
+        ).sort()
+      : [];
+
   // Filtrar productos
   const filteredProducts = mockProducts.filter((product) => {
     const matchesName = product.nombre
@@ -130,15 +220,18 @@ const Index = () => {
     const matchesCategory =
       selectedCategory === "Todas" || product.categoria === selectedCategory;
     const matchesRepisa =
-      searchRepisa === "" ||
-      product.ubicacion.repisa
-        .toLowerCase()
-        .includes(searchRepisa.toLowerCase());
+      searchRepisa === "" || product.ubicacion.repisa === searchRepisa;
     const matchesFila =
-      searchFila === "" ||
-      product.ubicacion.fila.toLowerCase().includes(searchFila.toLowerCase());
-
-    return matchesName && matchesCategory && matchesRepisa && matchesFila;
+      searchFila === "" || product.ubicacion.fila === searchFila;
+    const matchesColumna =
+      searchColumna === "" || product.ubicacion.nivel === searchColumna;
+    return (
+      matchesName &&
+      matchesCategory &&
+      matchesRepisa &&
+      matchesFila &&
+      matchesColumna
+    );
   });
 
   // Ordenar productos
@@ -175,6 +268,16 @@ const Index = () => {
     }
   };
 
+  const handleClearFilters = () => {
+    setSearchName("");
+    setSelectedCategory("Todas");
+    setSearchRepisa("");
+    setSearchFila("");
+    setSearchColumna("");
+    setSortField("nombre");
+    setSortDirection("asc");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted flex flex-col">
       {/* Layout con Sidebar */}
@@ -197,7 +300,7 @@ const Index = () => {
             {/* Filtros de búsqueda */}
             <div className="mb-6 lg:ml-0 ml-14">
               <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 sm:p-6 shadow-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                   {/* Búsqueda por nombre */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">
@@ -241,26 +344,100 @@ const Index = () => {
                     <label className="text-sm font-medium text-foreground">
                       Repisa
                     </label>
-                    <Input
-                      placeholder="Ej: A, B, C..."
+                    <Select
                       value={searchRepisa}
-                      onChange={(e) => setSearchRepisa(e.target.value)}
-                      className="h-11"
-                    />
+                      onValueChange={(v) => {
+                        if (v === "__all__") {
+                          setSearchRepisa("");
+                        } else {
+                          setSearchRepisa(v);
+                        }
+                        setSearchFila("");
+                        setSearchColumna("");
+                      }}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Seleccionar repisa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Todas</SelectItem>
+                        {repisas.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {r}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {/* Filtro por fila */}
+                  {/* Filtro por fila (depende de repisa) */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">
                       Fila
                     </label>
-                    <Input
-                      placeholder="Ej: 1, 2, 3..."
+                    <Select
                       value={searchFila}
-                      onChange={(e) => setSearchFila(e.target.value)}
-                      className="h-11"
-                    />
+                      onValueChange={(v) => {
+                        if (v === "__all__") {
+                          setSearchFila("");
+                        } else {
+                          setSearchFila(v);
+                        }
+                        setSearchColumna("");
+                      }}
+                    >
+                      <SelectTrigger className="h-11" disabled={!searchRepisa}>
+                        <SelectValue placeholder="Seleccionar fila" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Todas</SelectItem>
+                        {filas.map((f) => (
+                          <SelectItem key={f} value={f}>
+                            {f}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {/* Filtro por columna (nivel) depende de repisa y fila */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Columna
+                    </label>
+                    <Select
+                      value={searchColumna}
+                      onValueChange={(v) => {
+                        if (v === "__all__") {
+                          setSearchColumna("");
+                        } else {
+                          setSearchColumna(v);
+                        }
+                      }}
+                    >
+                      <SelectTrigger
+                        className="h-11"
+                        disabled={!searchRepisa || !searchFila}
+                      >
+                        <SelectValue placeholder="Seleccionar columna" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">Todas</SelectItem>
+                        {columnas.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Acciones de filtros */}
+                <div className="mt-4 flex justify-end">
+                  <Button variant="outline" onClick={handleClearFilters}>
+                    Limpiar filtros
+                  </Button>
                 </div>
               </div>
             </div>
@@ -295,6 +472,16 @@ const Index = () => {
                         <TableHead className="font-bold">
                           <Button
                             variant="ghost"
+                            onClick={() => handleSort("precio")}
+                            className="flex items-center gap-2 hover:bg-accent/60 h-auto p-2"
+                          >
+                            Precio
+                            <ArrowUpDown className="h-4 w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead className="font-bold">
+                          <Button
+                            variant="ghost"
                             onClick={() => handleSort("stock")}
                             className="flex items-center gap-2 hover:bg-accent/60 h-auto p-2"
                           >
@@ -322,13 +509,16 @@ const Index = () => {
                             <ArrowUpDown className="h-4 w-4" />
                           </Button>
                         </TableHead>
+                        <TableHead className="font-bold text-right">
+                          Acciones
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sortedProducts.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={5}
+                            colSpan={7}
                             className="text-center py-8 text-muted-foreground"
                           >
                             No se encontraron productos que coincidan con los
@@ -345,6 +535,12 @@ const Index = () => {
                               {product.nombre}
                             </TableCell>
                             <TableCell>{product.categoria}</TableCell>
+                            <TableCell>
+                              {product.precio?.toLocaleString("es-PE", {
+                                style: "currency",
+                                currency: "PEN",
+                              })}
+                            </TableCell>
                             <TableCell>
                               <span
                                 className={`font-semibold ${
@@ -365,6 +561,138 @@ const Index = () => {
                                 {product.ubicacion.fila}-
                                 {product.ubicacion.nivel}
                               </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="secondary">
+                                    Ver detalles
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-[600px]">
+                                  <DialogHeader>
+                                    <DialogTitle>{product.nombre}</DialogTitle>
+                                    <DialogDescription>
+                                      Información detallada del producto
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Categoría
+                                      </p>
+                                      <p className="font-medium">
+                                        {product.categoria ?? "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Marca
+                                      </p>
+                                      <p className="font-medium">
+                                        {product.marca ?? "N/A"}
+                                      </p>
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <p className="text-xs text-muted-foreground">
+                                        Descripción
+                                      </p>
+                                      <p className="font-medium">
+                                        {product.descripcion ?? "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Precio
+                                      </p>
+                                      <p className="font-medium">
+                                        {product.precio?.toLocaleString(
+                                          "es-PE",
+                                          {
+                                            style: "currency",
+                                            currency: "PEN",
+                                          }
+                                        ) ?? "N/A"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Stock disponible
+                                      </p>
+                                      <p className="font-medium">
+                                        {product.stock}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Stock mínimo
+                                      </p>
+                                      <p className="font-medium">
+                                        {product.stockMinimo}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Ubicación
+                                      </p>
+                                      <p className="font-medium">
+                                        {product.ubicacion.repisa}-
+                                        {product.ubicacion.fila}-
+                                        {product.ubicacion.nivel}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Perecible
+                                      </p>
+                                      <p className="font-medium">
+                                        {product.perecible ? "Sí" : "No"}
+                                      </p>
+                                    </div>
+                                    {product.perecible && (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">
+                                          Fecha de vencimiento
+                                        </p>
+                                        <p className="font-medium">
+                                          {product.fechaVencimiento ?? "N/A"}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-semibold mt-2">
+                                      Lotes
+                                    </p>
+                                    {product.lotes &&
+                                    product.lotes.length > 0 ? (
+                                      <div className="mt-2 border rounded-md divide-y">
+                                        {product.lotes.map((l: any) => (
+                                          <div
+                                            key={l.loteId}
+                                            className="p-2 text-sm flex items-center justify-between"
+                                          >
+                                            <span className="text-muted-foreground">
+                                              {l.loteId}
+                                            </span>
+                                            <span>Cant.: {l.cantidad}</span>
+                                            {product.perecible && (
+                                              <span className="text-muted-foreground">
+                                                Vence:{" "}
+                                                {l.fechaVencimiento ?? "-"}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground">
+                                        Sin lotes registrados
+                                      </p>
+                                    )}
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
                             </TableCell>
                           </TableRow>
                         ))
