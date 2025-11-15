@@ -3,6 +3,8 @@ import { apiRequest } from "./apiClient";
 export interface AuthResponse {
   token?: string;
   message?: string;
+  rol?: string; // <-- AÑADIDO
+  idUsuario?: number; // <-- AÑADIDO
 }
 
 export const AuthService = {

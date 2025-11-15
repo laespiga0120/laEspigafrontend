@@ -46,7 +46,14 @@ const Auth = () => {
       const response = await AuthService.login(username, password);
       if (response.token) {
         localStorage.setItem("token", response.token);
-        localStorage.setItem("user", JSON.stringify({ username }));
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            id: response.idUsuario,
+            username: username,
+            rol: response.rol,
+          })
+        );
 
         toast({
           title: "Inicio de sesión exitoso",
