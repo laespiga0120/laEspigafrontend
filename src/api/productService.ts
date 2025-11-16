@@ -23,6 +23,7 @@ export interface ProductoUpdatePayload {
   descripcion?: string;
   idCategoria: number;
   precio: number;
+  marca?: string; // <-- CAMPO AÑADIDO
   stockMinimo: number;
 }
 
@@ -49,6 +50,7 @@ export interface ProductoDetalle {
   idProducto: number;
   nombre: string;
   categoria: string;
+  idCategoria: number;
   marca: string;
   descripcion: string;
   precio: number;

@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-// --- CORRECCIÓN DE RUTAS: Usar rutas relativas ---
 import Sidebar from "../components/Sidebar";
 import { Input } from "../components/ui/input";
 import {
@@ -26,8 +25,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "../components/ui/dialog";
-import { Search, ArrowUpDown, Loader2, Pencil } from "lucide-react";
+import { Search, ArrowUpDown, Loader2, Edit } from "lucide-react";
 import { toast } from "sonner";
 import {
   ProductService,
@@ -39,22 +39,9 @@ import {
   ProductoUpdatePayload,
 } from "../api/productService";
 import { Skeleton } from "../components/ui/skeleton";
-import { Textarea } from "../components/ui/textarea";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "../components/ui/form";
 import { Label } from "../components/ui/label";
-// --- FIN CORRECCIÓN DE RUTAS ---
+import { Textarea } from "../components/ui/textarea";
 
-// ... (SortField type no cambia) ...
 type SortField =
   | "nombre"
   | "categoria"
@@ -64,340 +51,51 @@ type SortField =
   | "ubicacion"
   | "proveedor";
 
-// Esquema de validación (sigue SIN idProducto)
-const editFormSchema = z.object({
-  nombreProducto: z.string().min(1, { message: "El nombre es obligatorio." }),
-  descripcion: z.string().optional(),
-  idCategoria: z
-    .string()
-    .min(1, { message: "Debe seleccionar una categoría." }),
-  precio: z.coerce
-    .number()
-    .positive({ message: "El precio debe ser mayor a cero." }),
-  stockMinimo: z.coerce
-    .number()
-    .int({ message: "Debe ser un número entero." })
-    .min(0, { message: "El stock mínimo no puede ser negativo." }),
-});
-
-type EditFormValues = z.infer<typeof editFormSchema>;
-
-// Componente del Formulario de Edición
-interface EditProductDialogProps {
-  product: ProductoDetalle | null;
-  categorias: CategoriaFiltro[];
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: (updatedProduct: ProductoDetalle) => void;
-}
-
-const EditProductDialog: React.FC<EditProductDialogProps> = ({
-  product,
-  categorias,
-  isOpen,
-  onClose,
-  onSuccess,
-}) => {
-  const [isSaving, setIsSaving] = useState(false);
-
-  // --- CORRECCIÓN LÓGICA 1: Añadir idProducto al TIPO del formulario ---
-  // Zod no lo validará, pero react-hook-form lo gestionará.
-  const form = useForm<EditFormValues & { idProducto: number }>({
-    resolver: zodResolver(editFormSchema),
-    mode: "onChange",
-    reValidateMode: "onChange",
-    // --- CORRECCIÓN LÓGICA 2: Añadir idProducto a los defaultValues ---
-    defaultValues: {
-      idProducto: 0, // <-- AÑADIDO
-      nombreProducto: "",
-      descripcion: "",
-      idCategoria: "",
-      precio: 0,
-      stockMinimo: 0,
-    },
-  });
-
-  // 2. Precargar el formulario cuando el producto cambie
-  useEffect(() => {
-    if (product && categorias.length > 0) {
-      const prodCatName = (product.categoria || "").trim().toLowerCase();
-      const catMatch = categorias.find(
-        (c) => c.nombreCategoria.trim().toLowerCase() === prodCatName
-      );
-
-      // --- CORRECCIÓN LÓGICA 3: Añadir idProducto al form.reset ---
-      form.reset({
-        idProducto: product.idProducto, // <-- AÑADIDO
-        nombreProducto: product.nombre,
-        descripcion: product.descripcion || "",
-        precio: product.precio,
-        stockMinimo: product.stockMinimo,
-        idCategoria: catMatch ? String(catMatch.idCategoria) : "",
-      });
-
-      form.clearErrors();
-    }
-  }, [product, categorias, form.reset]);
-
-  if (!product) return null;
-
-  // 3. Manejadores de envío
-  const onInvalid = (errors: Record<string, any>) => {
-    console.warn("Validación fallida al actualizar:", errors);
-    const missing: string[] = [];
-    if (errors["nombreProducto"]) missing.push("nombre");
-    if (errors["idCategoria"]) missing.push("categoría");
-    if (errors["precio"]) missing.push("precio");
-    if (errors["stockMinimo"]) missing.push("stock mínimo");
-    const desc = missing.length
-      ? `Corrige: ${missing.join(", ")}.`
-      : "Revisa los campos obligatorios.";
-    toast.error("No se puede guardar", { description: desc });
-  };
-
-  // --- CORRECCIÓN LÓGICA 4: El tipo de 'values' ahora incluye idProducto ---
-  const onSubmit = async (values: EditFormValues & { idProducto: number }) => {
-    console.log("Enviando actualización de producto", values); // values AHORA tiene el idProducto
-    setIsSaving(true);
-
-    const payload: ProductoUpdatePayload = {
-      nombreProducto: values.nombreProducto,
-      descripcion: values.descripcion || undefined,
-      idCategoria: parseInt(values.idCategoria),
-      precio: values.precio,
-      stockMinimo: values.stockMinimo,
-    };
-
-    try {
-      // --- CORRECCIÓN LÓGICA 5: Usar values.idProducto (del estado del formulario) ---
-      const updatedProduct = await ProductService.updateProducto(
-        values.idProducto, // <-- CORREGIDO
-        payload
-      );
-      console.log("Producto actualizado (respuesta):", updatedProduct);
-      toast.success("Producto actualizado correctamente.");
-      onSuccess(updatedProduct);
-    } catch (error: any) {
-      console.error("Error updating product:", error);
-      let errorMessage = "Error desconocido al actualizar.";
-      if (error instanceof Error) {
-        try {
-          const jsonError = JSON.parse(error.message);
-          errorMessage =
-            jsonError.message || jsonError.error || "Error de servidor.";
-        } catch (e) {
-          errorMessage = error.message;
-        }
-      }
-      toast.error("Error al actualizar", { description: errorMessage });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>Modificar Producto</DialogTitle>
-          <DialogDescription>
-            Ajuste los campos permitidos del producto.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit, onInvalid)}
-            className="space-y-4 py-2"
-          >
-            {/* ... (Campos no editables no cambian) ... */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Marca</Label>
-                <Input
-                  value={product.marca || "N/A"}
-                  disabled
-                  className="bg-muted/50"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Proveedor
-                </Label>
-                <Input
-                  value={product.proveedor || "N/A"}
-                  disabled
-                  className="bg-muted/50"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Stock Disponible
-                </Label>
-                <Input
-                  value={product.stockDisponible}
-                  disabled
-                  className="bg-muted/50"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  Ubicación
-                </Label>
-                <Input
-                  value={product.ubicacion || "N/A"}
-                  disabled
-                  className="bg-muted/50"
-                />
-              </div>
-            </div>
-
-            <hr />
-
-            {/* ... (Campos editables no cambian) ... */}
-            <FormField
-              control={form.control}
-              name="nombreProducto"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre del producto</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Nombre..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="descripcion"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Descripción</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Descripción..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="idCategoria"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Categoría</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value || ""}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione una categoría" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categorias.map((cat) => (
-                        <SelectItem
-                          key={cat.idCategoria}
-                          value={String(cat.idCategoria)}
-                        >
-                          {cat.nombreCategoria}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="precio"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Precio</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="0.01" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="stockMinimo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Stock Mínimo</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="1" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSaving}
-                onClick={(e) => {
-                  console.debug("Click en Guardar Cambios");
-                }}
-              >
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Guardar Cambios
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-};
-// ------------------------------------------
-
-// ... (El componente Index principal no cambia) ...
 const Index = () => {
   const navigate = useNavigate();
   const [userName, setUserName] = useState("");
   const [userId, setUserId] = useState<number | null>(null);
   const [userRol, setUserRol] = useState<string | null>(null);
 
-  // --- ESTADOS DE DATOS REALES ---
+  // Estados de Datos
   const [products, setProducts] = useState<ProductoInventario[]>([]);
   const [allCategorias, setAllCategorias] = useState<CategoriaFiltro[]>([]);
   const [allRepisas, setAllRepisas] = useState<RepisaFiltro[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // --- ESTADOS DE FILTROS ---
+  // Estados de Filtros
   const [searchName, setSearchName] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [searchRepisa, setSearchRepisa] = useState("");
   const [searchFila, setSearchFila] = useState("");
   const [searchColumna, setSearchColumna] = useState("");
 
-  // --- ESTADOS DE ORDENAMIENTO ---
+  // Estados de Ordenamiento
   const [sortField, setSortField] = useState<SortField>("nombre");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // --- ESTADOS DEL MODAL ---
+  // Estados de Modal Ver Detalles
   const [selectedProductDetail, setSelectedProductDetail] =
     useState<ProductoDetalle | null>(null);
-  const [isDetailLoading, setIsDetailLoading] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<ProductoDetalle | null>(
-    null
-  );
+  const [isViewDetailLoading, setIsViewDetailLoading] = useState(false);
+
+  // Estados de Modal Edición
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editProduct, setEditProduct] = useState<ProductoDetalle | null>(null);
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Estados del formulario de edición
+  const [editForm, setEditForm] = useState({
+    nombreProducto: "",
+    descripcion: "",
+    idCategoria: 0,
+    precio: 0,
+    stockMinimo: 0,
+  });
+
+  // Errores de validación
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Efecto para autenticación
   useEffect(() => {
@@ -422,7 +120,7 @@ const Index = () => {
     }
   }, [navigate]);
 
-  // Efecto para cargar los filtros (categorías y repisas) al montar
+  // Cargar filtros
   useEffect(() => {
     const loadFiltros = async () => {
       try {
@@ -437,6 +135,7 @@ const Index = () => {
     loadFiltros();
   }, []);
 
+  // Cargar inventario
   const loadInventario = async () => {
     setIsLoading(true);
     try {
@@ -461,11 +160,10 @@ const Index = () => {
     }
   };
 
-  // Efecto para cargar el inventario CADA VEZ que un filtro u orden cambie
   useEffect(() => {
     const timer = setTimeout(() => {
       loadInventario();
-    }, 300); // 300ms debounce
+    }, 300);
     return () => clearTimeout(timer);
   }, [
     searchName,
@@ -477,7 +175,7 @@ const Index = () => {
     sortDirection,
   ]);
 
-  // Lógica de filtros dependientes
+  // Filtros dependientes
   const repisaSeleccionada = useMemo(
     () => allRepisas.find((r) => r.codigo === searchRepisa),
     [allRepisas, searchRepisa]
@@ -503,7 +201,7 @@ const Index = () => {
     [repisaSeleccionada, searchFila]
   );
 
-  // --- MANEJADORES ---
+  // Manejadores
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -523,9 +221,8 @@ const Index = () => {
     setSortDirection("asc");
   };
 
-  // Carga los detalles cuando se abre el modal "Ver Detalles"
   const handleVerDetalles = async (id: number) => {
-    setIsDetailLoading(true);
+    setIsViewDetailLoading(true);
     setSelectedProductDetail(null);
     try {
       const data = await ProductService.getProductoDetalle(id);
@@ -534,25 +231,107 @@ const Index = () => {
       console.error("Error fetching product detail:", error);
       toast.error("Error al cargar los detalles del producto.");
     } finally {
-      setIsDetailLoading(false);
+      setIsViewDetailLoading(false);
     }
   };
 
-  // Carga los detalles y abre el modal de EDICIÓN
-  const handleModificarClick = async (id: number) => {
-    setIsDetailLoading(true);
-    setEditingProduct(null);
+  // Abrir modal de edición
+  const handleOpenEdit = async (id: number) => {
+    setIsEditLoading(true);
+    setEditProduct(null);
+    setFormErrors({});
+    setIsEditModalOpen(true);
+
     try {
       const data = await ProductService.getProductoDetalle(id);
-      setEditingProduct(data);
+      setEditProduct(data);
+      setEditForm({
+        nombreProducto: data.nombre,
+        descripcion: data.descripcion || "",
+        idCategoria: data.idCategoria,
+        precio: data.precio,
+        stockMinimo: data.stockMinimo,
+      });
     } catch (error) {
-      console.error("Error fetching product detail for edit:", error);
-      toast.error("Error al cargar datos para edición.");
+      console.error("Error loading product for edit:", error);
+      toast.error("Error al cargar el producto para editar.");
+      setIsEditModalOpen(false);
     } finally {
-      setIsDetailLoading(false);
+      setIsEditLoading(false);
     }
   };
 
+  // Validar formulario
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!editForm.nombreProducto.trim()) {
+      errors.nombreProducto = "El nombre es obligatorio";
+    } else if (editForm.nombreProducto.length > 100) {
+      errors.nombreProducto = "El nombre no debe superar 100 caracteres";
+    }
+
+    if (editForm.descripcion && editForm.descripcion.length > 500) {
+      errors.descripcion = "La descripción no debe superar 500 caracteres";
+    }
+
+    if (!editForm.idCategoria || editForm.idCategoria === 0) {
+      errors.idCategoria = "Debe seleccionar una categoría";
+    }
+
+    if (!editForm.precio || editForm.precio <= 0) {
+      errors.precio = "El precio debe ser mayor a cero";
+    }
+
+    if (!editForm.stockMinimo || editForm.stockMinimo <= 0) {
+      errors.stockMinimo = "El stock mínimo debe ser mayor a cero";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Guardar cambios
+  const handleSaveEdit = async () => {
+    if (!validateForm()) {
+      toast.error("Por favor corrija los errores en el formulario");
+      return;
+    }
+
+    if (!editProduct) return;
+
+    setIsSaving(true);
+    try {
+      const payload: ProductoUpdatePayload = {
+        nombreProducto: editForm.nombreProducto.trim(),
+        descripcion: editForm.descripcion.trim() || undefined,
+        idCategoria: editForm.idCategoria,
+        precio: editForm.precio,
+        stockMinimo: editForm.stockMinimo,
+      };
+
+      await ProductService.updateProducto(editProduct.idProducto, payload);
+
+      toast.success("Producto actualizado correctamente");
+      setIsEditModalOpen(false);
+      loadInventario(); // Recargar la tabla
+    } catch (error: any) {
+      console.error("Error updating product:", error);
+
+      // Manejar diferentes tipos de errores
+      if (error.message?.includes("Ya existe")) {
+        toast.error("Ya existe otro producto con ese nombre");
+      } else if (error.message?.includes("autorizado")) {
+        toast.error("No tiene permisos para realizar esta acción");
+      } else {
+        toast.error("Error al actualizar el producto");
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Renderizar tabla
   const renderTableBody = () => {
     if (isLoading) {
       return Array.from({ length: 5 }).map((_, i) => (
@@ -589,7 +368,7 @@ const Index = () => {
       return (
         <TableRow>
           <TableCell
-            colSpan={8} // <-- Ajustado a 8 columnas
+            colSpan={8}
             className="text-center py-8 text-muted-foreground"
           >
             No se encontraron productos que coincidan con los filtros
@@ -633,6 +412,7 @@ const Index = () => {
         </TableCell>
         <TableCell className="text-right">
           <div className="flex gap-2 justify-end">
+            {/* Modal Ver Detalles */}
             <Dialog>
               <DialogTrigger asChild>
                 <Button
@@ -643,8 +423,8 @@ const Index = () => {
                   Ver detalles
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                {isDetailLoading ? (
+              <DialogContent className="sm:max-w-[600px] bg-popover">
+                {isViewDetailLoading ? (
                   <div className="flex justify-center items-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
@@ -782,18 +562,15 @@ const Index = () => {
               </DialogContent>
             </Dialog>
 
-            {(userRol === "ADMIN" || userId === 1) && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => handleModificarClick(product.idProducto)}
-                disabled={isDetailLoading}
-              >
-                <Pencil className="h-3 w-3" />
-                Modificar
-              </Button>
-            )}
+            {/* Botón Modificar */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleOpenEdit(product.idProducto)}
+            >
+              <Edit className="h-4 w-4 mr-1" />
+              Modificar
+            </Button>
           </div>
         </TableCell>
       </TableRow>
@@ -820,7 +597,6 @@ const Index = () => {
             <div className="mb-6 lg:ml-0 ml-14">
               <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 sm:p-6 shadow-lg">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  {/* Búsqueda por nombre */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">
                       Buscar por nombre
@@ -836,7 +612,6 @@ const Index = () => {
                     </div>
                   </div>
 
-                  {/* Filtro por categoría */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">
                       Categoría
@@ -862,7 +637,6 @@ const Index = () => {
                     </Select>
                   </div>
 
-                  {/* Filtro por repisa */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">
                       Repisa
@@ -889,7 +663,6 @@ const Index = () => {
                     </Select>
                   </div>
 
-                  {/* Filtro por fila (depende de repisa) */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">
                       Fila
@@ -915,7 +688,6 @@ const Index = () => {
                     </Select>
                   </div>
 
-                  {/* Filtro por columna (nivel) depende de repisa y fila */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">
                       Columna
@@ -944,7 +716,6 @@ const Index = () => {
                   </div>
                 </div>
 
-                {/* Acciones de filtros */}
                 <div className="mt-4 flex justify-end">
                   <Button variant="outline" onClick={handleClearFilters}>
                     Limpiar filtros
@@ -1044,33 +815,237 @@ const Index = () => {
         </main>
       </div>
 
-      {/* Renderizado del Modal de Edición */}
-      <EditProductDialog
-        isOpen={!!editingProduct}
-        onClose={() => setEditingProduct(null)}
-        product={editingProduct}
-        categorias={allCategorias}
-        onSuccess={(updatedProduct) => {
-          // Actualizar la lista de productos sin recargar toda la página
-          setProducts((prev) =>
-            prev.map((p) =>
-              p.idProducto === updatedProduct.idProducto
-                ? {
-                    ...p,
-                    nombre: updatedProduct.nombre,
-                    categoria: updatedProduct.categoria,
-                    proveedor: updatedProduct.proveedor,
-                    precio: updatedProduct.precio,
-                    stockMinimo: updatedProduct.stockMinimo,
-                    // Actualizamos el stock disponible desde la respuesta
-                    stockDisponible: updatedProduct.stockDisponible,
-                  }
-                : p
-            )
-          );
-          setEditingProduct(null);
-        }}
-      />
+      {/* Modal de Edición */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[600px] bg-popover max-h-[90vh] overflow-y-auto">
+          {isEditLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : !editProduct ? (
+            <div className="text-center h-64 flex-col flex justify-center items-center">
+              <p className="text-destructive">
+                No se pudieron cargar los datos del producto.
+              </p>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Modificar Producto</DialogTitle>
+                <DialogDescription>
+                  Edita los campos modificables del producto
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                {/* Nombre del Producto */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-nombre">
+                    Nombre del Producto{" "}
+                    <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="edit-nombre"
+                    value={editForm.nombreProducto}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        nombreProducto: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: Arroz Costeño 1kg"
+                    className={
+                      formErrors.nombreProducto ? "border-destructive" : ""
+                    }
+                  />
+                  {formErrors.nombreProducto && (
+                    <p className="text-sm text-destructive">
+                      {formErrors.nombreProducto}
+                    </p>
+                  )}
+                </div>
+
+                {/* Marca (Solo lectura) */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-marca">Marca</Label>
+                  <Input
+                    id="edit-marca"
+                    value={editProduct.marca || "N/A"}
+                    disabled
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Este campo no es modificable
+                  </p>
+                </div>
+
+                {/* Descripción */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-descripcion">Descripción</Label>
+                  <Textarea
+                    id="edit-descripcion"
+                    value={editForm.descripcion}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, descripcion: e.target.value })
+                    }
+                    placeholder="Descripción del producto..."
+                    rows={3}
+                    className={
+                      formErrors.descripcion ? "border-destructive" : ""
+                    }
+                  />
+                  {formErrors.descripcion && (
+                    <p className="text-sm text-destructive">
+                      {formErrors.descripcion}
+                    </p>
+                  )}
+                </div>
+
+                {/* Categoría */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-categoria">
+                    Categoría <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={editForm.idCategoria.toString()}
+                    onValueChange={(v) =>
+                      setEditForm({ ...editForm, idCategoria: parseInt(v) })
+                    }
+                  >
+                    <SelectTrigger
+                      id="edit-categoria"
+                      className={
+                        formErrors.idCategoria ? "border-destructive" : ""
+                      }
+                    >
+                      <SelectValue placeholder="Seleccionar categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allCategorias.map((cat) => (
+                        <SelectItem
+                          key={cat.idCategoria}
+                          value={cat.idCategoria.toString()}
+                        >
+                          {cat.nombreCategoria}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.idCategoria && (
+                    <p className="text-sm text-destructive">
+                      {formErrors.idCategoria}
+                    </p>
+                  )}
+                </div>
+
+                {/* Precio */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-precio">
+                    Precio (S/) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="edit-precio"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editForm.precio}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        precio: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="0.00"
+                    className={formErrors.precio ? "border-destructive" : ""}
+                  />
+                  {formErrors.precio && (
+                    <p className="text-sm text-destructive">
+                      {formErrors.precio}
+                    </p>
+                  )}
+                </div>
+
+                {/* Stock Mínimo */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-stock-minimo">
+                    Stock Mínimo <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="edit-stock-minimo"
+                    type="number"
+                    min="1"
+                    value={editForm.stockMinimo}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        stockMinimo: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="0"
+                    className={
+                      formErrors.stockMinimo ? "border-destructive" : ""
+                    }
+                  />
+                  {formErrors.stockMinimo && (
+                    <p className="text-sm text-destructive">
+                      {formErrors.stockMinimo}
+                    </p>
+                  )}
+                </div>
+
+                {/* Campos no modificables (información) */}
+                <div className="border-t pt-4 space-y-3">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Información no modificable:
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Stock Disponible:</p>
+                      <p className="font-medium">
+                        {editProduct.stockDisponible}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Ubicación:</p>
+                      <p className="font-medium">{editProduct.ubicacion}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Proveedor:</p>
+                      <p className="font-medium">{editProduct.proveedor}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Perecible:</p>
+                      <p className="font-medium">
+                        {editProduct.perecible ? "Sí" : "No"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={isSaving}
+                >
+                  Cancelar
+                </Button>
+                <Button onClick={handleSaveEdit} disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Guardar Cambios"
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <footer className="container mx-auto px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-muted-foreground">
