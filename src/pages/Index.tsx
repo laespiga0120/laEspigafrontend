@@ -27,7 +27,23 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "../components/ui/dialog";
-import { Search, ArrowUpDown, Loader2, Edit } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
+import {
+  Search,
+  ArrowUpDown,
+  Loader2,
+  Edit,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   ProductService,
@@ -37,6 +53,7 @@ import {
   CategoriaFiltro,
   RepisaFiltro,
   ProductoUpdatePayload,
+  UbicacionDto,
 } from "../api/productService";
 import { Skeleton } from "../components/ui/skeleton";
 import { Label } from "../components/ui/label";
@@ -85,13 +102,32 @@ const Index = () => {
   const [isEditLoading, setIsEditLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Estados para confirmaciones
+  const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const [showUbicacionOcupadaDialog, setShowUbicacionOcupadaDialog] =
+    useState(false);
+  const [productoOcupante, setProductoOcupante] = useState<{
+    id: number;
+    nombre: string;
+  } | null>(null);
+
+  // Estados para ubicaciones disponibles
+  const [ubicacionesDisponibles, setUbicacionesDisponibles] = useState<
+    UbicacionDto[]
+  >([]);
+  const [loadingUbicaciones, setLoadingUbicaciones] = useState(false);
+
   // Estados del formulario de edición
   const [editForm, setEditForm] = useState({
     nombreProducto: "",
     descripcion: "",
+    marca: "",
     idCategoria: 0,
     precio: 0,
     stockMinimo: 0,
+    idRepisa: 0,
+    fila: 0,
+    columna: 0,
   });
 
   // Errores de validación
@@ -201,6 +237,73 @@ const Index = () => {
     [repisaSeleccionada, searchFila]
   );
 
+  // Filtros para el modal de edición
+  const repisaEditSeleccionada = useMemo(
+    () => allRepisas.find((r) => r.idRepisa === editForm.idRepisa),
+    [allRepisas, editForm.idRepisa]
+  );
+
+  const filasEdit = useMemo(
+    () =>
+      repisaEditSeleccionada
+        ? Array.from(
+            { length: repisaEditSeleccionada.numeroFilas },
+            (_, i) => i + 1
+          )
+        : [],
+    [repisaEditSeleccionada]
+  );
+
+  const columnasEdit = useMemo(
+    () =>
+      repisaEditSeleccionada && editForm.fila
+        ? Array.from(
+            { length: repisaEditSeleccionada.numeroColumnas },
+            (_, i) => i + 1
+          )
+        : [],
+    [repisaEditSeleccionada, editForm.fila]
+  );
+
+  // Cargar ubicaciones cuando se selecciona una repisa
+  useEffect(() => {
+    if (editForm.idRepisa && isEditModalOpen) {
+      loadUbicacionesDisponibles(editForm.idRepisa);
+    }
+  }, [editForm.idRepisa, isEditModalOpen]);
+
+  const loadUbicacionesDisponibles = async (repisaId: number) => {
+    setLoadingUbicaciones(true);
+    try {
+      const ubicaciones = await ProductService.getUbicacionesPorRepisa(
+        repisaId
+      );
+      setUbicacionesDisponibles(ubicaciones);
+    } catch (error) {
+      console.error("Error loading ubicaciones:", error);
+      toast.error("Error al cargar las ubicaciones de la repisa");
+    } finally {
+      setLoadingUbicaciones(false);
+    }
+  };
+
+  // Verificar si una ubicación está disponible
+  const isUbicacionDisponible = (fila: number, columna: number): boolean => {
+    if (
+      editProduct &&
+      editProduct.fila === fila &&
+      editProduct.columna === columna &&
+      editProduct.idRepisa === editForm.idRepisa
+    ) {
+      return true;
+    }
+
+    const ubicacion = ubicacionesDisponibles.find(
+      (u) => u.fila === fila && u.columna === columna
+    );
+    return ubicacion ? ubicacion.estado === "LIBRE" : false;
+  };
+
   // Manejadores
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -235,12 +338,12 @@ const Index = () => {
     }
   };
 
-  // Abrir modal de edición
   const handleOpenEdit = async (id: number) => {
     setIsEditLoading(true);
     setEditProduct(null);
     setFormErrors({});
     setIsEditModalOpen(true);
+    setUbicacionesDisponibles([]);
 
     try {
       const data = await ProductService.getProductoDetalle(id);
@@ -248,9 +351,13 @@ const Index = () => {
       setEditForm({
         nombreProducto: data.nombre,
         descripcion: data.descripcion || "",
+        marca: data.marca || "",
         idCategoria: data.idCategoria,
         precio: data.precio,
         stockMinimo: data.stockMinimo,
+        idRepisa: data.idRepisa || 0,
+        fila: data.fila || 0,
+        columna: data.columna || 0,
       });
     } catch (error) {
       console.error("Error loading product for edit:", error);
@@ -271,6 +378,10 @@ const Index = () => {
       errors.nombreProducto = "El nombre no debe superar 100 caracteres";
     }
 
+    if (editForm.marca && editForm.marca.length > 100) {
+      errors.marca = "La marca no debe superar 100 caracteres";
+    }
+
     if (editForm.descripcion && editForm.descripcion.length > 500) {
       errors.descripcion = "La descripción no debe superar 500 caracteres";
     }
@@ -287,17 +398,31 @@ const Index = () => {
       errors.stockMinimo = "El stock mínimo debe ser mayor a cero";
     }
 
+    const ubicacionCompleta =
+      editForm.idRepisa && editForm.fila && editForm.columna;
+    const ubicacionVacia =
+      !editForm.idRepisa && !editForm.fila && !editForm.columna;
+
+    if (!ubicacionCompleta && !ubicacionVacia) {
+      errors.ubicacion =
+        "Debe completar repisa, fila y columna, o dejar todos vacíos";
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // Guardar cambios
-  const handleSaveEdit = async () => {
+  // Iniciar proceso de guardado (muestra confirmación)
+  const handleInitiateSave = () => {
     if (!validateForm()) {
       toast.error("Por favor corrija los errores en el formulario");
       return;
     }
+    setShowConfirmSave(true);
+  };
 
+  // Guardar cambios (con opción de forzar ubicación)
+  const handleSaveEdit = async (forzarCambioUbicacion: boolean = false) => {
     if (!editProduct) return;
 
     setIsSaving(true);
@@ -305,21 +430,35 @@ const Index = () => {
       const payload: ProductoUpdatePayload = {
         nombreProducto: editForm.nombreProducto.trim(),
         descripcion: editForm.descripcion.trim() || undefined,
+        marca: editForm.marca.trim() || undefined,
         idCategoria: editForm.idCategoria,
         precio: editForm.precio,
         stockMinimo: editForm.stockMinimo,
+        idRepisa: editForm.idRepisa || undefined,
+        fila: editForm.fila || undefined,
+        columna: editForm.columna || undefined,
+        forzarCambioUbicacion, // Flag para manejar ubicación ocupada
       };
 
       await ProductService.updateProducto(editProduct.idProducto, payload);
 
       toast.success("Producto actualizado correctamente");
+      setShowConfirmSave(false);
+      setShowUbicacionOcupadaDialog(false);
       setIsEditModalOpen(false);
-      loadInventario(); // Recargar la tabla
+      loadInventario();
     } catch (error: any) {
       console.error("Error updating product:", error);
 
-      // Manejar diferentes tipos de errores
-      if (error.message?.includes("Ya existe")) {
+      // Manejar error de ubicación ocupada
+      if (error.error === "UBICACION_OCUPADA") {
+        setProductoOcupante({
+          id: error.idProductoOcupante,
+          nombre: error.nombreProductoOcupante,
+        });
+        setShowConfirmSave(false);
+        setShowUbicacionOcupadaDialog(true);
+      } else if (error.message?.includes("Ya existe")) {
         toast.error("Ya existe otro producto con ese nombre");
       } else if (error.message?.includes("autorizado")) {
         toast.error("No tiene permisos para realizar esta acción");
@@ -329,6 +468,11 @@ const Index = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Confirmar guardado sin ubicación (forzar cambio)
+  const handleConfirmUbicacionOcupada = () => {
+    handleSaveEdit(true); // Forzar el cambio de ubicación
   };
 
   // Renderizar tabla
@@ -412,7 +556,6 @@ const Index = () => {
         </TableCell>
         <TableCell className="text-right">
           <div className="flex gap-2 justify-end">
-            {/* Modal Ver Detalles */}
             <Dialog>
               <DialogTrigger asChild>
                 <Button
@@ -562,7 +705,6 @@ const Index = () => {
               </DialogContent>
             </Dialog>
 
-            {/* Botón Modificar */}
             <Button
               size="sm"
               variant="outline"
@@ -583,7 +725,6 @@ const Index = () => {
         <Sidebar activeSection="panel-principal" />
         <main className="flex-1 overflow-y-auto animate-fade-in">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
-            {/* Encabezado */}
             <div className="mb-6 sm:mb-8 lg:ml-0 ml-14">
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground mb-2">
                 Inventario de Productos
@@ -593,7 +734,6 @@ const Index = () => {
               </p>
             </div>
 
-            {/* Filtros de búsqueda */}
             <div className="mb-6 lg:ml-0 ml-14">
               <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 sm:p-6 shadow-lg">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -724,7 +864,6 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Tabla de productos */}
             <div className="lg:ml-0 ml-14">
               <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl shadow-lg overflow-hidden">
                 <div className="overflow-x-auto">
@@ -817,7 +956,7 @@ const Index = () => {
 
       {/* Modal de Edición */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="sm:max-w-[600px] bg-popover max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[700px] bg-popover max-h-[90vh] overflow-y-auto">
           {isEditLoading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -838,7 +977,6 @@ const Index = () => {
               </DialogHeader>
 
               <div className="space-y-4 py-4">
-                {/* Nombre del Producto */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-nombre">
                     Nombre del Producto{" "}
@@ -865,21 +1003,24 @@ const Index = () => {
                   )}
                 </div>
 
-                {/* Marca (Solo lectura) */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-marca">Marca</Label>
                   <Input
                     id="edit-marca"
-                    value={editProduct.marca || "N/A"}
-                    disabled
-                    className="bg-muted"
+                    value={editForm.marca}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, marca: e.target.value })
+                    }
+                    placeholder="Ej: Costeño"
+                    className={formErrors.marca ? "border-destructive" : ""}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Este campo no es modificable
-                  </p>
+                  {formErrors.marca && (
+                    <p className="text-sm text-destructive">
+                      {formErrors.marca}
+                    </p>
+                  )}
                 </div>
 
-                {/* Descripción */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-descripcion">Descripción</Label>
                   <Textarea
@@ -901,7 +1042,6 @@ const Index = () => {
                   )}
                 </div>
 
-                {/* Categoría */}
                 <div className="space-y-2">
                   <Label htmlFor="edit-categoria">
                     Categoría <span className="text-destructive">*</span>
@@ -938,62 +1078,181 @@ const Index = () => {
                   )}
                 </div>
 
-                {/* Precio */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-precio">
-                    Precio (S/) <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="edit-precio"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={editForm.precio}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        precio: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="0.00"
-                    className={formErrors.precio ? "border-destructive" : ""}
-                  />
-                  {formErrors.precio && (
-                    <p className="text-sm text-destructive">
-                      {formErrors.precio}
-                    </p>
-                  )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-precio">
+                      Precio (S/) <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="edit-precio"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={editForm.precio}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          precio: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      placeholder="0.00"
+                      className={formErrors.precio ? "border-destructive" : ""}
+                    />
+                    {formErrors.precio && (
+                      <p className="text-sm text-destructive">
+                        {formErrors.precio}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-stock-minimo">
+                      Stock Mínimo <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="edit-stock-minimo"
+                      type="number"
+                      min="1"
+                      value={editForm.stockMinimo}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          stockMinimo: parseInt(e.target.value) || 0,
+                        })
+                      }
+                      placeholder="0"
+                      className={
+                        formErrors.stockMinimo ? "border-destructive" : ""
+                      }
+                    />
+                    {formErrors.stockMinimo && (
+                      <p className="text-sm text-destructive">
+                        {formErrors.stockMinimo}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                {/* Stock Mínimo */}
-                <div className="space-y-2">
-                  <Label htmlFor="edit-stock-minimo">
-                    Stock Mínimo <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="edit-stock-minimo"
-                    type="number"
-                    min="1"
-                    value={editForm.stockMinimo}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        stockMinimo: parseInt(e.target.value) || 0,
-                      })
-                    }
-                    placeholder="0"
-                    className={
-                      formErrors.stockMinimo ? "border-destructive" : ""
-                    }
-                  />
-                  {formErrors.stockMinimo && (
+                <div className="border-t pt-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Ubicación</Label>
+                    {loadingUbicaciones && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-repisa">Repisa</Label>
+                    <Select
+                      value={
+                        editForm.idRepisa ? editForm.idRepisa.toString() : "0"
+                      }
+                      onValueChange={(v) => {
+                        const idRepisa = parseInt(v);
+                        setEditForm({
+                          ...editForm,
+                          idRepisa,
+                          fila: 0,
+                          columna: 0,
+                        });
+                      }}
+                    >
+                      <SelectTrigger id="edit-repisa">
+                        <SelectValue placeholder="Seleccionar repisa" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Sin ubicación</SelectItem>
+                        {allRepisas.map((r) => (
+                          <SelectItem
+                            key={r.idRepisa}
+                            value={r.idRepisa.toString()}
+                          >
+                            {r.codigo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-fila">Fila</Label>
+                      <Select
+                        value={editForm.fila ? editForm.fila.toString() : "0"}
+                        onValueChange={(v) => {
+                          setEditForm({
+                            ...editForm,
+                            fila: parseInt(v),
+                            columna: 0,
+                          });
+                        }}
+                        disabled={!editForm.idRepisa}
+                      >
+                        <SelectTrigger id="edit-fila">
+                          <SelectValue placeholder="Seleccionar fila" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">---</SelectItem>
+                          {filasEdit.map((f) => (
+                            <SelectItem key={f} value={f.toString()}>
+                              {f}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-columna">Columna</Label>
+                      <Select
+                        value={
+                          editForm.columna ? editForm.columna.toString() : "0"
+                        }
+                        onValueChange={(v) => {
+                          setEditForm({
+                            ...editForm,
+                            columna: parseInt(v),
+                          });
+                        }}
+                        disabled={!editForm.idRepisa || !editForm.fila}
+                      >
+                        <SelectTrigger id="edit-columna">
+                          <SelectValue placeholder="Seleccionar columna" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">---</SelectItem>
+                          {columnasEdit.map((c) => {
+                            const disponible = isUbicacionDisponible(
+                              editForm.fila,
+                              c
+                            );
+                            return (
+                              <SelectItem
+                                key={c}
+                                value={c.toString()}
+                                disabled={!disponible}
+                              >
+                                {c} {!disponible && "(Ocupada)"}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {formErrors.ubicacion && (
                     <p className="text-sm text-destructive">
-                      {formErrors.stockMinimo}
+                      {formErrors.ubicacion}
                     </p>
                   )}
+
+                  <p className="text-xs text-muted-foreground">
+                    Deje todos los campos de ubicación vacíos para no modificar
+                    la ubicación actual
+                  </p>
                 </div>
 
-                {/* Campos no modificables (información) */}
                 <div className="border-t pt-4 space-y-3">
                   <p className="text-sm font-medium text-muted-foreground">
                     Información no modificable:
@@ -1006,7 +1265,7 @@ const Index = () => {
                       </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Ubicación:</p>
+                      <p className="text-muted-foreground">Ubicación Actual:</p>
                       <p className="font-medium">{editProduct.ubicacion}</p>
                     </div>
                     <div>
@@ -1031,15 +1290,8 @@ const Index = () => {
                 >
                   Cancelar
                 </Button>
-                <Button onClick={handleSaveEdit} disabled={isSaving}>
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    "Guardar Cambios"
-                  )}
+                <Button onClick={handleInitiateSave} disabled={isSaving}>
+                  Guardar Cambios
                 </Button>
               </DialogFooter>
             </>
@@ -1047,7 +1299,86 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Footer */}
+      {/* AlertDialog - Confirmación de Guardado */}
+      <AlertDialog open={showConfirmSave} onOpenChange={setShowConfirmSave}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Confirmar Cambios
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción cambiará los datos del producto permanentemente. ¿Está
+              seguro de que desea continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleSaveEdit(false)}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                "Confirmar"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog - Ubicación Ocupada */}
+      <AlertDialog
+        open={showUbicacionOcupadaDialog}
+        onOpenChange={setShowUbicacionOcupadaDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Ubicación Ocupada
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                La ubicación seleccionada está ocupada por el producto:{" "}
+                <span className="font-semibold text-foreground">
+                  {productoOcupante?.nombre}
+                </span>
+              </p>
+              <p className="text-destructive font-medium">
+                ¿Desea dejar ese producto sin ubicación asignada y continuar?
+              </p>
+              <p className="text-xs text-muted-foreground border-l-2 border-amber-500 pl-3 py-2 bg-amber-50 dark:bg-amber-950/20">
+                <strong>Recomendación:</strong> Se recomienda asignarle una
+                ubicación al producto desplazado cuanto antes para mantener el
+                orden del inventario.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSaving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmUbicacionOcupada}
+              disabled={isSaving}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                "Sí, continuar sin ubicación"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <footer className="container mx-auto px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-muted-foreground">
         <p>La Espiga © 2025 - Sistema de gestión para abarrotes y postres</p>
       </footer>

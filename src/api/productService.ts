@@ -1,6 +1,5 @@
 import { apiRequest } from "./apiClient";
 
-// Coincide con tu ProductoDTO del backend
 export interface ProductPayload {
   nombreProducto: string;
   precio: number;
@@ -13,18 +12,22 @@ export interface ProductPayload {
   perecible: boolean;
   marca?: string;
   descripcion?: string;
-  idUbicacion: number; // Es requerido por tu DTO
+  idUbicacion: number;
 }
 
-// --- NUEVA INTERFAZ ---
-// Corresponde a ProductoUpdateDto
+// --- ACTUALIZADO CON MARCA Y UBICACIÓN ---
 export interface ProductoUpdatePayload {
   nombreProducto: string;
   descripcion?: string;
+  marca?: string; // AÑADIDO
   idCategoria: number;
   precio: number;
-  marca?: string; // <-- CAMPO AÑADIDO
   stockMinimo: number;
+  // Ubicación (todos opcionales, se envían juntos o ninguno)
+  idRepisa?: number; // AÑADIDO
+  fila?: number; // AÑADIDO
+  columna?: number; // AÑADIDO
+  forzarCambioUbicacion?: boolean; // AÑADIDO - Flag para desasignar ubicación del producto anterior
 }
 
 export interface ProductoInventario {
@@ -34,18 +37,17 @@ export interface ProductoInventario {
   precio: number;
   stockDisponible: number;
   stockMinimo: number;
-  ubicacion: string; // Formato "A-1-2"
-  proveedor: string; // <-- AÑADIDO
+  ubicacion: string;
+  proveedor: string;
 }
 
-// Corresponde a LoteDetalleDto
 export interface LoteDetalle {
   codigoLote: string;
   cantidad: number;
-  fechaVencimiento: string | null; // "YYYY-MM-DD"
+  fechaVencimiento: string | null;
 }
 
-// Corresponde a ProductoDetalleDto
+// --- ACTUALIZADO CON CAMPOS DE UBICACIÓN DETALLADA ---
 export interface ProductoDetalle {
   idProducto: number;
   nombre: string;
@@ -56,14 +58,18 @@ export interface ProductoDetalle {
   precio: number;
   stockDisponible: number;
   stockMinimo: number;
-  ubicacion: string;
+  ubicacion: string; // Formato "A-1-2"
+  // Campos detallados de ubicación
+  idUbicacion?: number; // AÑADIDO
+  idRepisa?: number; // AÑADIDO
+  fila?: number; // AÑADIDO
+  columna?: number; // AÑADIDO
   perecible: boolean;
-  fechaVencimientoProxima: string | null; // "YYYY-MM-DD" o "N/A"
-  proveedor: string; // <-- AÑADIDO
+  fechaVencimientoProxima: string | null;
+  proveedor: string;
   lotes: LoteDetalle[];
 }
 
-// Corresponde a CategoriaDto
 export interface CategoriaFiltro {
   idCategoria: number;
   nombreCategoria: string;
@@ -71,7 +77,6 @@ export interface CategoriaFiltro {
   cantidadProductos: number;
 }
 
-// Corresponde a RepisaDetalleDto
 export interface RepisaFiltro {
   idRepisa: number;
   codigo: string;
@@ -79,13 +84,11 @@ export interface RepisaFiltro {
   numeroColumnas: number;
 }
 
-// Corresponde a FiltrosDto
 export interface FiltrosData {
   categorias: CategoriaFiltro[];
   repisas: RepisaFiltro[];
 }
 
-// --- Parámetros para getInventario ---
 export interface InventarioParams {
   nombre?: string;
   categoriaId?: number;
@@ -96,7 +99,15 @@ export interface InventarioParams {
   sortDir?: string;
 }
 
-// --- Helper para construir query strings ---
+// --- NUEVA INTERFAZ PARA UBICACIONES ---
+export interface UbicacionDto {
+  idUbicacion: number;
+  idRepisa: number;
+  fila: number;
+  columna: number;
+  estado: string; // "LIBRE" o "OCUPADA"
+}
+
 const buildQueryString = (params: Record<string, any>): string => {
   const query = Object.entries(params)
     .filter(
@@ -111,21 +122,13 @@ const buildQueryString = (params: Record<string, any>): string => {
 };
 
 export const ProductService = {
-  // POST /api/productos/registrar
   create: (payload: ProductPayload): Promise<string> => {
-    // Tu backend devuelve un string en el body, no un JSON
     return apiRequest<string>("/api/productos/registrar", {
       method: "POST",
       body: JSON.stringify(payload),
     });
   },
 
-  // --- NUEVAS FUNCIONES PARA EL PANEL DE INVENTARIO ---
-
-  /**
-   * GET /api/v1/productos/inventario
-   * Obtiene la lista filtrada y ordenada de productos.
-   */
   getInventario: (params: InventarioParams): Promise<ProductoInventario[]> => {
     const queryString = buildQueryString(params);
     return apiRequest<ProductoInventario[]>(
@@ -133,39 +136,33 @@ export const ProductService = {
     );
   },
 
-  /**
-   * GET /api/v1/productos/filtros
-   * Obtiene los datos para los dropdowns de filtros.
-   */
   getFiltrosInventario: (): Promise<FiltrosData> => {
     return apiRequest<FiltrosData>("/api/productos/filtros");
   },
 
-  /**
-   * GET /api/v1/productos/detalles/{id}
-   * Obtiene los detalles de un solo producto para el modal.
-   */
   getProductoDetalle: (id: number): Promise<ProductoDetalle> => {
     return apiRequest<ProductoDetalle>(`/api/productos/detalles/${id}`);
   },
 
-  // --- NUEVA FUNCIÓN ---
-  /**
-   * PUT /api/v1/productos/actualizar/{id}
-   * Actualiza los datos básicos de un producto.
-   */
   updateProducto: (
     id: number,
     payload: ProductoUpdatePayload
   ): Promise<ProductoDetalle> => {
-    const token = localStorage.getItem("token"); // <- Necesario para endpoint seguro
+    const token = localStorage.getItem("token");
     return apiRequest<ProductoDetalle>(`/api/productos/actualizar/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
       headers: {
-        Authorization: `Bearer ${token}`, // <- Enviar token
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
     });
+  },
+
+  // --- NUEVA FUNCIÓN PARA OBTENER UBICACIONES DE UNA REPISA ---
+  getUbicacionesPorRepisa: (repisaId: number): Promise<UbicacionDto[]> => {
+    return apiRequest<UbicacionDto[]>(
+      `/api/v1/ubicaciones/repisas/${repisaId}/detalle`
+    );
   },
 };
