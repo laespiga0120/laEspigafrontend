@@ -12,6 +12,7 @@ import RegisterSalesOutput from "./pages/RegisterSalesOutput";
 import RegisterSupplierInput from "./pages/RegisterSupplierInput";
 import InventoryReport from "./pages/InventoryReport";
 import Movements from "./pages/Movements";
+import ManageUsers from "./pages/ManageUsers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
           <Route path="/reportes" element={<InventoryReport />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="/movimientos" element={<Movements />} />
+          <Route path="/administrar-usuarios" element={<ManageUsers />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
