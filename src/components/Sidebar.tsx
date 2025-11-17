@@ -60,7 +60,7 @@ const Sidebar = ({ activeSection }: SidebarProps) => {
     },
     { id: "movimientos", label: "Movimientos", icon: History, path: "/movimientos" },
     { id: "reportes", label: "Reportes", icon: BarChart3, path: "/reportes" },
-    { id: "usuarios", label: "Usuarios", icon: Users },
+    { id: "administrar-usuarios", label: "Administrar Usuarios", icon: Users, path: "/administrar-usuarios" },
   ];
 
   const handleLogout = () => {
