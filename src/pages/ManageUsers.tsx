@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,71 +38,66 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "@/hooks/use-toast";
-import { Users, UserPlus, Pencil, Trash2, Search } from "lucide-react";
-
-interface User {
-  id: string;
-  fullName: string;
-  username: string;
-  role: "Administrador" | "Vendedor";
-}
+import { toast } from "sonner";
+import { Users, UserPlus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { UserService, UserDto, UserPayload } from "@/api/userService";
+import { RoleService, Rol } from "@/api/roleService";
 
 const ManageUsers = () => {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: "1",
-      fullName: "Juan Pérez",
-      username: "jperez",
-      role: "Administrador",
-    },
-    {
-      id: "2",
-      fullName: "María García",
-      username: "mgarcia",
-      role: "Vendedor",
-    },
-    {
-      id: "3",
-      fullName: "Carlos López",
-      username: "clopez",
-      role: "Vendedor",
-    },
-  ]);
-
+  const [users, setUsers] = useState<UserDto[]>([]);
+  const [roles, setRoles] = useState<Rol[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<UserDto | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     username: "",
     password: "",
-    role: "Vendedor" as "Administrador" | "Vendedor",
+    idRol: "",
   });
+
+  // Cargar usuarios y roles al inicio
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [usersData, rolesData] = await Promise.all([
+        UserService.list(),
+        RoleService.list(),
+      ]);
+      setUsers(usersData);
+      setRoles(rolesData);
+    } catch (error) {
+      toast.error("Error al cargar datos del sistema");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredUsers = users.filter(
     (user) =>
-      user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.apellido.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleOpenDialog = (user?: User) => {
+  const handleOpenDialog = (user?: UserDto) => {
     if (user) {
       setEditingUser(user);
-      // split fullName into first and last name (first token = firstName, rest = lastName)
-      const parts = user.fullName.split(" ");
-      const firstName = parts.shift() || "";
-      const lastName = parts.join(" ");
       setFormData({
-        firstName,
-        lastName,
+        firstName: user.nombre,
+        lastName: user.apellido,
         username: user.username,
-        password: "",
-        role: user.role,
+        password: "", // Contraseña vacía al editar
+        idRol: user.idRol.toString(),
       });
     } else {
       setEditingUser(null);
@@ -111,94 +106,72 @@ const ManageUsers = () => {
         lastName: "",
         username: "",
         password: "",
-        role: "Vendedor",
+        idRol: "",
       });
     }
     setDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (
       !formData.firstName ||
       !formData.lastName ||
       !formData.username ||
-      (!editingUser && !formData.password)
+      (!editingUser && !formData.password) ||
+      !formData.idRol
     ) {
-      toast({
-        title: "Error",
-        description: "Por favor complete todos los campos obligatorios",
-        variant: "destructive",
-      });
+      toast.error("Por favor complete todos los campos obligatorios");
       return;
     }
 
-    const existingUser = users.find(
-      (u) => u.username === formData.username && u.id !== editingUser?.id
-    );
+    const payload: UserPayload = {
+      nombre: formData.firstName,
+      apellido: formData.lastName,
+      username: formData.username,
+      idRol: parseInt(formData.idRol),
+      // Solo enviar password si se escribió algo
+      password: formData.password ? formData.password : undefined,
+    };
 
-    if (existingUser) {
-      toast({
-        title: "Error",
-        description: "Ya existe un usuario con ese nombre de usuario",
-        variant: "destructive",
-      });
-      return;
+    try {
+      if (editingUser) {
+        await UserService.update(editingUser.idUsuario, payload);
+        toast.success(`Usuario ${payload.username} actualizado correctamente`);
+      } else {
+        await UserService.create(payload);
+        toast.success(`Usuario ${payload.username} creado correctamente`);
+      }
+      fetchData(); // Recargar lista
+      setDialogOpen(false);
+    } catch (error: any) {
+      let msg = "Error al guardar usuario";
+      try {
+        const json = JSON.parse(error.message);
+        msg = json.error || json.message || msg;
+      } catch (e) {
+        msg = error.message || msg;
+      }
+      toast.error(msg);
     }
-
-    const composedFullName =
-      `${formData.firstName} ${formData.lastName}`.trim();
-
-    if (editingUser) {
-      setUsers(
-        users.map((u) =>
-          u.id === editingUser.id
-            ? {
-                ...u,
-                fullName: composedFullName,
-                username: formData.username,
-                role: formData.role,
-              }
-            : u
-        )
-      );
-      toast({
-        title: "Usuario actualizado",
-        description: `El usuario ${composedFullName} ha sido actualizado correctamente`,
-      });
-    } else {
-      const newUser: User = {
-        id: Date.now().toString(),
-        fullName: composedFullName,
-        username: formData.username,
-        role: formData.role,
-      };
-      setUsers([...users, newUser]);
-      toast({
-        title: "Usuario creado",
-        description: `El usuario ${composedFullName} ha sido creado correctamente`,
-      });
-    }
-
-    setDialogOpen(false);
-    setEditingUser(null);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (deletingUserId) {
-      const user = users.find((u) => u.id === deletingUserId);
-      setUsers(users.filter((u) => u.id !== deletingUserId));
-      toast({
-        title: "Usuario eliminado",
-        description: `El usuario ${user?.fullName} ha sido eliminado correctamente`,
-      });
+      try {
+        await UserService.delete(deletingUserId);
+        toast.success("Usuario eliminado correctamente");
+        fetchData();
+      } catch (error) {
+        toast.error("No se pudo eliminar el usuario");
+      }
     }
     setDeleteDialogOpen(false);
     setDeletingUserId(null);
   };
 
-  const handleDeleteClick = (userId: string) => {
+  const handleDeleteClick = (userId: number) => {
     setDeletingUserId(userId);
     setDeleteDialogOpen(true);
   };
@@ -223,7 +196,7 @@ const ManageUsers = () => {
                   </div>
                 </div>
                 <p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
-                  Gestiona los usuarios del sistema
+                  Gestiona los usuarios y roles del sistema
                 </p>
               </div>
 
@@ -328,21 +301,23 @@ const ManageUsers = () => {
                           <div className="space-y-2">
                             <Label htmlFor="role">Rol *</Label>
                             <Select
-                              value={formData.role}
-                              onValueChange={(
-                                value: "Administrador" | "Vendedor"
-                              ) => setFormData({ ...formData, role: value })}
+                              value={formData.idRol}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, idRol: value })
+                              }
                             >
                               <SelectTrigger id="role">
-                                <SelectValue />
+                                <SelectValue placeholder="Seleccionar rol" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Administrador">
-                                  Administrador
-                                </SelectItem>
-                                <SelectItem value="Vendedor">
-                                  Vendedor
-                                </SelectItem>
+                                {roles.map((role) => (
+                                  <SelectItem
+                                    key={role.idRol}
+                                    value={role.idRol.toString()}
+                                  >
+                                    {role.nombreRol}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -368,7 +343,16 @@ const ManageUsers = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredUsers.length === 0 ? (
+                      {isLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-8">
+                            <div className="flex justify-center items-center">
+                              <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+                              Cargando usuarios...
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredUsers.length === 0 ? (
                         <TableRow>
                           <TableCell
                             colSpan={4}
@@ -379,20 +363,20 @@ const ManageUsers = () => {
                         </TableRow>
                       ) : (
                         filteredUsers.map((user) => (
-                          <TableRow key={user.id}>
+                          <TableRow key={user.idUsuario}>
                             <TableCell className="font-medium">
-                              {user.fullName}
+                              {user.nombre} {user.apellido}
                             </TableCell>
                             <TableCell>{user.username}</TableCell>
                             <TableCell>
                               <Badge
                                 variant={
-                                  user.role === "Administrador"
+                                  user.nombreRol === "ADMINISTRADOR"
                                     ? "default"
                                     : "secondary"
                                 }
                               >
-                                {user.role}
+                                {user.nombreRol}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
@@ -407,7 +391,9 @@ const ManageUsers = () => {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  onClick={() => handleDeleteClick(user.id)}
+                                  onClick={() =>
+                                    handleDeleteClick(user.idUsuario)
+                                  }
                                   className="hover:bg-destructive/10 hover:text-destructive"
                                 >
                                   <Trash2 className="w-4 h-4" />
