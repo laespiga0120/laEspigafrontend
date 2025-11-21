@@ -1,17 +1,4 @@
-import {
-  FileText,
-  BarChart3,
-  Users,
-  PackagePlus,
-  Home,
-  Menu,
-  LogOut,
-  MapPin,
-  FolderOpen,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  History
-} from "lucide-react";
+import { FileText, BarChart3, Users, PackagePlus, Home, Menu, LogOut, MapPin, FolderOpen, ArrowDownCircle, ArrowUpCircle, History, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -52,6 +39,7 @@ const Sidebar = ({ activeSection }: SidebarProps) => {
       icon: FolderOpen,
       path: "/administrar-categorias",
     },
+    { id: "revision-inventario", label: "Revisión de Inventario", icon: ClipboardCheck, path: "/revision-inventario" },
     {
       id: "administrar-proveedores",
       label: "Administrar Proveedores",
@@ -102,11 +90,10 @@ const Sidebar = ({ activeSection }: SidebarProps) => {
             <Link key={item.id} to={item.path} onClick={() => setOpen(false)}>
               <Button
                 variant={isActive ? "default" : "ghost"}
-                className={`w-full justify-start gap-3 h-11 text-sm font-medium transition-all ${
-                  isActive
+                className={`w-full justify-start gap-3 h-11 text-sm font-medium transition-all ${isActive
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "hover:bg-accent/60 hover:translate-x-1"
-                }`}
+                  }`}
               >
                 {ButtonContent}
               </Button>
@@ -115,11 +102,10 @@ const Sidebar = ({ activeSection }: SidebarProps) => {
             <Button
               key={item.id}
               variant={isActive ? "default" : "ghost"}
-              className={`w-full justify-start gap-3 h-11 text-sm font-medium transition-all ${
-                isActive
+              className={`w-full justify-start gap-3 h-11 text-sm font-medium transition-all ${isActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "hover:bg-accent/60 hover:translate-x-1"
-              }`}
+                }`}
             >
               {ButtonContent}
             </Button>
