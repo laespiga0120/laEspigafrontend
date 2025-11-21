@@ -181,15 +181,15 @@ const Movements = () => {
   const handleSaveEdit = () => {
     if (!editFormData) return;
 
-    setMovements(movements.map(m => 
+    setMovements(movements.map(m =>
       m.id === editFormData.id ? editFormData : m
     ));
-    
+
     toast({
       title: "Movimiento actualizado",
       description: "El movimiento se ha modificado exitosamente",
     });
-    
+
     setEditDialogOpen(false);
     setEditingMovement(null);
     setEditFormData(null);
@@ -197,7 +197,7 @@ const Movements = () => {
 
   const handleAddProduct = () => {
     if (!editFormData) return;
-    
+
     setEditFormData({
       ...editFormData,
       productos: [...editFormData.productos, { producto: "", cantidad: 0 }]
@@ -206,7 +206,7 @@ const Movements = () => {
 
   const handleRemoveProduct = (index: number) => {
     if (!editFormData) return;
-    
+
     setEditFormData({
       ...editFormData,
       productos: editFormData.productos.filter((_, i) => i !== index)
@@ -215,10 +215,10 @@ const Movements = () => {
 
   const handleProductChange = (index: number, field: 'producto' | 'cantidad', value: string | number) => {
     if (!editFormData) return;
-    
+
     const newProductos = [...editFormData.productos];
     newProductos[index] = { ...newProductos[index], [field]: value };
-    
+
     setEditFormData({
       ...editFormData,
       productos: newProductos
@@ -229,7 +229,7 @@ const Movements = () => {
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted flex flex-col">
       <div className="flex flex-1">
         <Sidebar activeSection="movimientos" />
-        
+
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 animate-fade-in">
           <div className="max-w-7xl mx-auto">
             <div className="mb-6 sm:mb-8 lg:ml-0 ml-14">
@@ -247,7 +247,7 @@ const Movements = () => {
                   <History className="h-5 w-5" />
                   Filtros de Búsqueda
                 </h2>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Fecha Desde</label>
@@ -334,7 +334,7 @@ const Movements = () => {
                         const isExpanded = expandedRows.has(movimiento.id);
                         const totalCantidad = movimiento.productos.reduce((sum, p) => sum + p.cantidad, 0);
                         const hasMultipleProducts = movimiento.productos.length > 1;
-                        
+
                         return (
                           <>
                             <TableRow key={movimiento.id} className="hover:bg-muted/30 transition-colors">
@@ -439,14 +439,14 @@ const Movements = () => {
           </div>
         </main>
       </div>
-      
+
       {/* Dialog para editar movimiento */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Modificar Movimiento</DialogTitle>
           </DialogHeader>
-          
+
           {editFormData && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
