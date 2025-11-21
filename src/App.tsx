@@ -5,12 +5,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import ForgotPassword from "./pages/ForgotPassword";
 import NewProduct from "./pages/NewProduct";
 import ManageCategories from "./pages/ManageCategories";
 import ManageProveedores from "./pages/ManageProveedores";
 import RegisterSalesOutput from "./pages/RegisterSalesOutput";
 import RegisterSupplierInput from "./pages/RegisterSupplierInput";
 import InventoryReport from "./pages/InventoryReport";
+import InventoryReview from "./pages/InventoryReview";
 import Movements from "./pages/Movements";
 import ManageUsers from "./pages/ManageUsers";
 import NotFound from "./pages/NotFound";
@@ -26,6 +28,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/nuevo-producto" element={<NewProduct />} />
           <Route path="/salidas" element={<RegisterSalesOutput />} />
           <Route path="/entradas" element={<RegisterSupplierInput />} />
@@ -34,6 +37,7 @@ const App = () => (
             path="/administrar-categorias"
             element={<ManageCategories />}
           />
+          <Route path="/revision-inventario" element={<InventoryReview />} />
           <Route
             path="/administrar-proveedores"
             element={<ManageProveedores />}
