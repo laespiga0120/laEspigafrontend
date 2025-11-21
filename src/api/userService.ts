@@ -5,6 +5,7 @@ export interface UserDto {
   username: string;
   nombre: string;
   apellido: string;
+  email: string;
   nombreRol: string;
   idRol: number;
   fechaIngreso: string;
@@ -15,6 +16,7 @@ export interface UserPayload {
   nombre: string;
   apellido: string;
   username: string;
+  email: string;
   password?: string; // Opcional en update
   idRol: number;
 }

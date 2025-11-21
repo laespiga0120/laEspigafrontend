@@ -57,6 +57,7 @@ const ManageUsers = () => {
     firstName: "",
     lastName: "",
     username: "",
+    email: "",
     password: "",
     idRol: "",
   });
@@ -66,7 +67,7 @@ const ManageUsers = () => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async () => { 
     setIsLoading(true);
     try {
       const [usersData, rolesData] = await Promise.all([
@@ -96,6 +97,7 @@ const ManageUsers = () => {
         firstName: user.nombre,
         lastName: user.apellido,
         username: user.username,
+        email: user.email || "",
         password: "", // Contraseña vacía al editar
         idRol: user.idRol.toString(),
       });
@@ -105,6 +107,7 @@ const ManageUsers = () => {
         firstName: "",
         lastName: "",
         username: "",
+        email: "",
         password: "",
         idRol: "",
       });
@@ -119,6 +122,7 @@ const ManageUsers = () => {
       !formData.firstName ||
       !formData.lastName ||
       !formData.username ||
+      !formData.email ||
       (!editingUser && !formData.password) ||
       !formData.idRol
     ) {
@@ -126,10 +130,16 @@ const ManageUsers = () => {
       return;
     }
 
+    if (!formData.email.endsWith("@gmail.com")) {
+      toast.error("El correo debe ser @gmail.com");
+      return;
+    }
+
     const payload: UserPayload = {
       nombre: formData.firstName,
       apellido: formData.lastName,
       username: formData.username,
+      email: formData.email,
       idRol: parseInt(formData.idRol),
       // Solo enviar password si se escribió algo
       password: formData.password ? formData.password : undefined,
@@ -264,6 +274,7 @@ const ManageUsers = () => {
                               />
                             </div>
                           </div>
+
                           <div className="space-y-2">
                             <Label htmlFor="username">Usuario *</Label>
                             <Input
@@ -276,6 +287,21 @@ const ManageUsers = () => {
                                 })
                               }
                               placeholder="Ej: jperez"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="email">Gmail *</Label>
+                            <Input
+                              id="email"
+                              type="email"
+                              value={formData.email}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  email: e.target.value,
+                                })
+                              }
+                              placeholder="Ej: usuario@gmail.com"
                             />
                           </div>
                           <div className="space-y-2">
@@ -338,6 +364,7 @@ const ManageUsers = () => {
                       <TableRow>
                         <TableHead>Nombre Completo</TableHead>
                         <TableHead>Usuario</TableHead>
+                        <TableHead>Email</TableHead>
                         <TableHead>Rol</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
@@ -368,6 +395,7 @@ const ManageUsers = () => {
                               {user.nombre} {user.apellido}
                             </TableCell>
                             <TableCell>{user.username}</TableCell>
+                            <TableCell>{user.email}</TableCell>
                             <TableCell>
                               <Badge
                                 variant={
