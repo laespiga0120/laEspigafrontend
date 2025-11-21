@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -199,18 +199,12 @@ const Auth = () => {
 
             {/* Enlace Olvidó su contraseña */}
             <div className="text-center">
-              <Button
-                type="button"
-                variant="link"
-                className="text-sm text-muted-foreground hover:text-primary"
-                onClick={() =>
-                  alert(
-                    "Funcionalidad de recuperación de contraseña próximamente"
-                  )
-                }
+              <Link
+                to="/forgot-password"
+                className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
               >
                 ¿Olvidó su contraseña?
-              </Button>
+              </Link>
             </div>
           </form>
         </div>
@@ -225,3 +219,4 @@ const Auth = () => {
 };
 
 export default Auth;
+
