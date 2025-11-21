@@ -146,7 +146,7 @@ const Index = () => {
         }
         setUserName(userData.username);
         setUserId(userData.id);
-        setUserRol(userData.rol);
+        setUserRol(userData.rol); // Aquí guardamos el rol en el estado
       } catch (e) {
         console.error("Error parsing user data", e);
         localStorage.removeItem("user");
@@ -705,14 +705,17 @@ const Index = () => {
               </DialogContent>
             </Dialog>
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleOpenEdit(product.idProducto)}
-            >
-              <Edit className="h-4 w-4 mr-1" />
-              Modificar
-            </Button>
+            {/* 🔹 CONDICIONAL PARA EL BOTÓN MODIFICAR */}
+            {(userRol === "Administrador" || userRol === "ADMINISTRADOR") && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleOpenEdit(product.idProducto)}
+              >
+                <Edit className="h-4 w-4 mr-1" />
+                Modificar
+              </Button>
+            )}
           </div>
         </TableCell>
       </TableRow>

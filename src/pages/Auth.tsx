@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,15 @@ const Auth = () => {
     general: "",
   });
   const { toast } = useToast();
+
+  // 🔹 CORRECCIÓN: Verificar si ya está autenticado al cargar la página
+  useEffect(() => {
+    if (AuthService.isAuthenticated()) {
+      // Si ya tiene token, redirigir al home y reemplazar la historia para que no pueda volver atrás
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -45,23 +54,20 @@ const Auth = () => {
     try {
       const response = await AuthService.login(username, password);
       if (response.token) {
-        localStorage.setItem("token", response.token);
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: response.idUsuario,
-            username: username,
-            rol: response.rol,
-          })
-        );
-
+        // 🔹 NOTA: AuthService.login ya guarda el token y el user en localStorage
+        // pero aquí hacemos una redirección explícita tras el éxito.
+        
         toast({
           title: "Inicio de sesión exitoso",
           description: "Redirigiendo al panel principal...",
         });
 
-        navigate("/"); // Redirigir al dashboard o inicio
+        navigate("/", { replace: true }); // Redirigir al dashboard
       } else {
+        setErrors({
+          ...newErrors,
+          general: response.message || "Error de autenticación",
+        });
         toast({
           title: "Error de autenticación",
           description: response.message || "Usuario o contraseña incorrectos",
@@ -71,9 +77,6 @@ const Auth = () => {
     } catch (error: any) {
       console.error("Error en login:", error);
 
-      // apiClient throws an Error whose message may be the raw response body
-      // (often JSON like { message: 'Credenciales inválidas', ... }).
-      // Try to parse that and show a friendly message for invalid credentials.
       let description = "No se pudo conectar al servidor";
       let title = "Error del servidor";
 
@@ -96,15 +99,14 @@ const Auth = () => {
               description = serverMsg;
             }
           } else {
-            // If parsed but no message field, fall back to raw text
             description = msg;
           }
         } catch {
-          // Not JSON, use the raw error message
           description = msg;
         }
       }
 
+      setErrors({ ...newErrors, general: description });
       toast({
         title,
         description,
@@ -200,7 +202,11 @@ const Auth = () => {
             {/* Enlace Olvidó su contraseña */}
             <div className="text-center">
               <Link
-                to="/forgot-password"
+                to="#"
+                onClick={(e) => {
+                    e.preventDefault();
+                    alert("Contacte al administrador para restablecer su contraseña.")
+                }}
                 className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
               >
                 ¿Olvidó su contraseña?
@@ -219,4 +225,3 @@ const Auth = () => {
 };
 
 export default Auth;
-
