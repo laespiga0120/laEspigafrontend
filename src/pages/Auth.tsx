@@ -202,11 +202,7 @@ const Auth = () => {
             {/* Enlace Olvidó su contraseña */}
             <div className="text-center">
               <Link
-                to="#"
-                onClick={(e) => {
-                    e.preventDefault();
-                    alert("Contacte al administrador para restablecer su contraseña.")
-                }}
+                to="/forgot-password"
                 className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
               >
                 ¿Olvidó su contraseña?

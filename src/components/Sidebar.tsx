@@ -11,11 +11,13 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   History,
+  TableOfContents,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState, useEffect } from "react";
+import { beTarask } from "date-fns/locale";
 
 interface SidebarProps {
   activeSection?: string;
@@ -58,14 +60,14 @@ const Sidebar = ({ activeSection }: SidebarProps) => {
     {
       id: "salidas",
       label: "Registrar Salida",
-      icon: ArrowDownCircle,
+      icon: ArrowUpCircle,
       path: "/salidas",
       allowedRoles: ["Administrador", "Vendedor", "ADMINISTRADOR", "VENDEDOR"],
     },
     {
       id: "entradas",
       label: "Registrar Entrada",
-      icon: ArrowUpCircle,
+      icon: ArrowDownCircle,
       path: "/entradas",
       allowedRoles: ["Administrador", "ADMINISTRADOR"],
     },
@@ -95,6 +97,13 @@ const Sidebar = ({ activeSection }: SidebarProps) => {
       label: "Reportes",
       icon: BarChart3,
       path: "/reportes",
+      allowedRoles: ["Administrador", "ADMINISTRADOR"],
+    },
+    {
+      id: "revision-inventario",
+      label: "Revision Inventario",
+      icon: TableOfContents,
+      path: "/revision-inventario",
       allowedRoles: ["Administrador", "ADMINISTRADOR"],
     },
     {
