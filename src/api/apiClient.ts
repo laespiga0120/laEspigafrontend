@@ -28,6 +28,7 @@ export async function apiRequest<T>(
   };
 
   // 🔸 CRÍTICO: Solo agregar token si NO es un endpoint público
+  // Usamos el endpoint original para esta validación
   const isPublicEndpoint = PUBLIC_ENDPOINTS.some((publicPath) =>
     endpoint.startsWith(publicPath)
   );
@@ -45,8 +46,19 @@ export async function apiRequest<T>(
     headers,
   };
 
+  // ✅ CORRECCIÓN DE DOBLE BARRA (//)
+  // 1. Quitamos la barra final de la URL base si existe
+  const cleanBaseUrl = API_BASE_URL.replace(/\/$/, "");
+  // 2. Quitamos la barra inicial del endpoint si existe
+  const cleanEndpoint = endpoint.replace(/^\//, "");
+  // 3. Unimos con una única barra
+  const finalUrl = `${cleanBaseUrl}/${cleanEndpoint}`;
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    // Console log opcional para que verifiques en el navegador que la URL es correcta
+    console.log("📡 Enviando petición a:", finalUrl); 
+
+    const response = await fetch(finalUrl, config);
 
     // Si la respuesta es exitosa
     if (response.ok) {
