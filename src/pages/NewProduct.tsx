@@ -42,9 +42,12 @@ const formSchema = z
     nombreProducto: z
       .string()
       .min(1, { message: "Debe ingresar un nombre para el producto" }),
-    precio: z.coerce
+    precioCompra: z.coerce
       .number()
-      .positive({ message: "El precio debe ser mayor a cero" }),
+      .positive({ message: "El precio de compra debe ser mayor a cero" }),
+    precioVenta: z.coerce
+      .number()
+      .positive({ message: "El precio de venta debe ser mayor a cero" }),
     unidadMedida: z
       .string()
       .min(1, { message: "Debe seleccionar una unidad de medida" }),
@@ -91,7 +94,8 @@ const NewProduct = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       nombreProducto: "",
-      precio: 0,
+      precioCompra: 0,
+      precioVenta: 0,
       unidadMedida: "",
       idCategoria: "",
       idProveedor: "",
@@ -148,7 +152,8 @@ const NewProduct = () => {
     try {
       const payload: ProductPayload = {
         nombreProducto: values.nombreProducto,
-        precio: values.precio,
+        precioCompra: values.precioCompra,
+        precioVenta: values.precioVenta,
         unidadMedida: values.unidadMedida,
         stock: values.stock,
         stockMinimo: values.stockMinimo,
@@ -226,10 +231,28 @@ const NewProduct = () => {
                     />
                     <FormField
                       control={form.control}
-                      name="precio"
+                      name="precioCompra"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Precio *</FormLabel>
+                          <FormLabel>Precio Compra *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="precioVenta"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Precio Venta *</FormLabel>
                           <FormControl>
                             <Input
                               type="number"

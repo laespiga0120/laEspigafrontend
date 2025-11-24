@@ -59,6 +59,7 @@ interface ProductoAgregado {
   nombre: string;
   cantidad: number;
   stock: number; // Stock real (de lotes) al momento de agregar
+  precioVenta: number;
 }
 
 // --- (FIX 1) COMPONENTE DE BÚSQUEDA EXTRAÍDO ---
@@ -331,6 +332,7 @@ const RegisterSalesOutput = () => {
         nombre: selectedProduct.nombreProducto,
         cantidad,
         stock: selectedProduct.stock,
+        precioVenta: selectedProduct.precioVenta,
       },
     ]);
 
@@ -436,6 +438,12 @@ const RegisterSalesOutput = () => {
                             Descripción: {selectedProduct.descripcionProducto}
                           </p>
                         )}
+                        <p className="text-sm font-medium mt-2">
+                          Precio:{" "}
+                          <span className="text-foreground">
+                            {selectedProduct.precioVenta?.toFixed(2) ?? "N/A"}
+                          </span>
+                        </p>
                       </div>
                     )}
 
@@ -499,6 +507,13 @@ const RegisterSalesOutput = () => {
                                 Cantidad: {product.cantidad} | Stock:{" "}
                                 {product.stock}
                               </p>
+                              <p className="text-sm text-muted-foreground">
+                                Precio: {product.precioVenta?.toFixed(2) ?? "N/A"}{" "}
+                                | Subtotal:{" "}
+                                {(
+                                  product.cantidad * (product.precioVenta || 0)
+                                ).toFixed(2)}
+                              </p>
                             </div>
                             <Button
                               variant="destructive"
@@ -557,6 +572,19 @@ const RegisterSalesOutput = () => {
                       )}
                     />
 
+                    {form.watch("motivo") === "Venta" &&
+                      selectedProducts.length > 0 && (
+                        <div className="flex justify-end mt-4 text-lg font-bold">
+                          Total: S/{" "}
+                          {selectedProducts
+                            .reduce(
+                              (acc, p) => acc + p.cantidad * (p.precioVenta || 0),
+                              0
+                            )
+                            .toFixed(2)}
+                        </div>
+                      )}
+
                     <Button
                       type="submit"
                       className="w-full h-12"
@@ -613,31 +641,32 @@ const RegisterSalesOutput = () => {
                         <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
                           <Package className="w-4 h-4 text-destructive" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-sm">
-                            Motivo: {item.motivo}
-                          </h4>
-                          <ul className="list-disc pl-5 mt-1">
-                            {item.detalles.map((detalle, index) => (
-                              <li
-                                key={index}
-                                className="text-sm text-foreground"
-                              >
-                                {detalle.nombreProducto}
-                                <p className="text-xs text-muted-foreground">
-                                  Cantidad: {detalle.cantidad}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-sm">
+                              Motivo: {item.motivo}
+                            </h4>
+                            <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                              {item.detalles.map((detalle, index) => (
+                                <p key={index} className="leading-snug">
+                                  • {detalle.nombreProducto}: {detalle.cantidad}{" "}
+                                  und. | Precio:{" "}
+                                  {detalle.precioVenta?.toFixed(2) ?? "N/A"} |
+                                  Subtotal:{" "}
+                                  {detalle.subtotal?.toFixed(2) ?? "N/A"}
                                 </p>
-                              </li>
-                            ))}
-                          </ul>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            {format(
-                              new Date(item.fechaMovimiento),
-                              "dd/MM/yyyy HH:mm"
-                            )}{" "}
-                            - {item.nombreUsuario}
-                          </p>
-                        </div>
+                              ))}
+                              <p className="font-semibold text-foreground pt-1 border-t border-border">
+                                Total: S/ {item.totalGeneral?.toFixed(2) ?? "N/A"}
+                              </p>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {format(
+                                new Date(item.fechaMovimiento),
+                                "dd/MM/yyyy HH:mm"
+                              )}{" "}
+                              - {item.nombreUsuario}
+                            </p>
+                          </div>
                       </div>
                     </div>
                   ))}

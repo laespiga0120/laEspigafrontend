@@ -62,7 +62,8 @@ import { Textarea } from "../components/ui/textarea";
 type SortField =
   | "nombre"
   | "categoria"
-  | "precio"
+  | "precioCompra"
+  | "precioVenta"
   | "stock"
   | "stockMinimo"
   | "ubicacion"
@@ -123,7 +124,8 @@ const Index = () => {
     descripcion: "",
     marca: "",
     idCategoria: 0,
-    precio: 0,
+    precioCompra: 0,
+    precioVenta: 0,
     stockMinimo: 0,
     idRepisa: 0,
     fila: 0,
@@ -353,7 +355,8 @@ const Index = () => {
         descripcion: data.descripcion || "",
         marca: data.marca || "",
         idCategoria: data.idCategoria,
-        precio: data.precio,
+        precioCompra: data.precioCompra,
+        precioVenta: data.precioVenta,
         stockMinimo: data.stockMinimo,
         idRepisa: data.idRepisa || 0,
         fila: data.fila || 0,
@@ -390,8 +393,12 @@ const Index = () => {
       errors.idCategoria = "Debe seleccionar una categoría";
     }
 
-    if (!editForm.precio || editForm.precio <= 0) {
-      errors.precio = "El precio debe ser mayor a cero";
+    if (!editForm.precioCompra || editForm.precioCompra <= 0) {
+      errors.precioCompra = "El precio de compra debe ser mayor a cero";
+    }
+
+    if (!editForm.precioVenta || editForm.precioVenta <= 0) {
+      errors.precioVenta = "El precio de venta debe ser mayor a cero";
     }
 
     if (!editForm.stockMinimo || editForm.stockMinimo <= 0) {
@@ -432,7 +439,8 @@ const Index = () => {
         descripcion: editForm.descripcion.trim() || undefined,
         marca: editForm.marca.trim() || undefined,
         idCategoria: editForm.idCategoria,
-        precio: editForm.precio,
+        precioCompra: editForm.precioCompra,
+        precioVenta: editForm.precioVenta,
         stockMinimo: editForm.stockMinimo,
         idRepisa: editForm.idRepisa || undefined,
         fila: editForm.fila || undefined,
@@ -530,7 +538,13 @@ const Index = () => {
         <TableCell>{product.categoria}</TableCell>
         <TableCell>{product.proveedor}</TableCell>
         <TableCell>
-          {product.precio?.toLocaleString("es-PE", {
+          {product.precioCompra?.toLocaleString("es-PE", {
+            style: "currency",
+            currency: "PEN",
+          })}
+        </TableCell>
+        <TableCell>
+          {product.precioVenta?.toLocaleString("es-PE", {
             style: "currency",
             currency: "PEN",
           })}
@@ -617,9 +631,21 @@ const Index = () => {
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Precio</p>
+                        <p className="text-xs text-muted-foreground">Precio Compra</p>
                         <p className="font-medium">
-                          {selectedProductDetail.precio?.toLocaleString(
+                          {selectedProductDetail.precioCompra?.toLocaleString(
+                            "es-PE",
+                            {
+                              style: "currency",
+                              currency: "PEN",
+                            }
+                          ) ?? "N/D"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Precio Venta</p>
+                        <p className="font-medium">
+                          {selectedProductDetail.precioVenta?.toLocaleString(
                             "es-PE",
                             {
                               style: "currency",
@@ -906,10 +932,20 @@ const Index = () => {
                         <TableHead className="font-bold">
                           <Button
                             variant="ghost"
-                            onClick={() => handleSort("precio")}
+                            onClick={() => handleSort("precioCompra")}
                             className="flex items-center gap-2 hover:bg-accent/60 h-auto p-2"
                           >
-                            Precio
+                            P. Compra
+                            <ArrowUpDown className="h-4 w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead className="font-bold">
+                          <Button
+                            variant="ghost"
+                            onClick={() => handleSort("precioVenta")}
+                            className="flex items-center gap-2 hover:bg-accent/60 h-auto p-2"
+                          >
+                            P. Venta
                             <ArrowUpDown className="h-4 w-4" />
                           </Button>
                         </TableHead>
@@ -1083,27 +1119,53 @@ const Index = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="edit-precio">
-                      Precio (S/) <span className="text-destructive">*</span>
+                    <Label htmlFor="edit-precio-compra">
+                      Precio Compra (S/) <span className="text-destructive">*</span>
                     </Label>
                     <Input
-                      id="edit-precio"
+                      id="edit-precio-compra"
                       type="number"
                       step="0.01"
                       min="0.01"
-                      value={editForm.precio}
+                      value={editForm.precioCompra}
                       onChange={(e) =>
                         setEditForm({
                           ...editForm,
-                          precio: parseFloat(e.target.value) || 0,
+                          precioCompra: parseFloat(e.target.value) || 0,
                         })
                       }
                       placeholder="0.00"
-                      className={formErrors.precio ? "border-destructive" : ""}
+                      className={formErrors.precioCompra ? "border-destructive" : ""}
                     />
-                    {formErrors.precio && (
+                    {formErrors.precioCompra && (
                       <p className="text-sm text-destructive">
-                        {formErrors.precio}
+                        {formErrors.precioCompra}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-precio-venta">
+                      Precio Venta (S/) <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="edit-precio-venta"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={editForm.precioVenta}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          precioVenta: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      placeholder="0.00"
+                      className={formErrors.precioVenta ? "border-destructive" : ""}
+                    />
+                    {formErrors.precioVenta && (
+                      <p className="text-sm text-destructive">
+                        {formErrors.precioVenta}
                       </p>
                     )}
                   </div>

@@ -8,6 +8,7 @@ export interface ProductoBusqueda {
   nombreProducto: string;
   descripcionProducto: string;
   stock: number;
+  precioVenta: number;
 }
 
 // Corresponde a DetalleSalidaDto
@@ -27,6 +28,8 @@ export interface RegistroSalidaPayload {
 export interface DetalleHistorialSalida {
   nombreProducto: string;
   cantidad: number;
+  precioVenta: number;
+  subtotal: number;
 }
 
 // Corresponde a MovimientoHistorialDto
@@ -36,6 +39,7 @@ export interface MovimientoHistorialSalida {
   fechaMovimiento: string; // LocalDateTime se serializa como String
   nombreUsuario: string;
   detalles: DetalleHistorialSalida[];
+  totalGeneral: number;
 }
 
 // --- ENTRADAS
@@ -57,7 +61,8 @@ export interface ProductoPorProveedorDto {
 export interface DetalleHistorialDto {
   nombreProducto: string;
   cantidad: number;
-  precioUnitario: number;
+  precioVenta: number;
+  precioCompra: number;
   subtotal: number;
 }
 
@@ -83,7 +88,8 @@ export interface MovimientoHistorialDto {
 export interface DetalleEntradaDto {
   idProducto: number;
   cantidad: number;
-  precioUnitario: number;
+  precioCompra: number;
+  precioVenta: number;
   fechaVencimiento?: string | null; // ISO DateTime string
   observacionDetalle?: string;
 }

@@ -2,7 +2,8 @@ import { apiRequest } from "./apiClient";
 
 export interface ProductPayload {
   nombreProducto: string;
-  precio: number;
+  precioCompra: number;
+  precioVenta: number;
   unidadMedida: string;
   idCategoria: number;
   idProveedor: number;
@@ -21,7 +22,8 @@ export interface ProductoUpdatePayload {
   descripcion?: string;
   marca?: string; // AÑADIDO
   idCategoria: number;
-  precio: number;
+  precioCompra: number;
+  precioVenta: number;
   stockMinimo: number;
   // Ubicación (todos opcionales, se envían juntos o ninguno)
   idRepisa?: number; // AÑADIDO
@@ -34,7 +36,8 @@ export interface ProductoInventario {
   idProducto: number;
   nombre: string;
   categoria: string;
-  precio: number;
+  precioCompra: number;
+  precioVenta: number;
   stockDisponible: number;
   stockMinimo: number;
   ubicacion: string;
@@ -55,7 +58,8 @@ export interface ProductoDetalle {
   idCategoria: number;
   marca: string;
   descripcion: string;
-  precio: number;
+  precioCompra: number;
+  precioVenta: number;
   stockDisponible: number;
   stockMinimo: number;
   ubicacion: string; // Formato "A-1-2"

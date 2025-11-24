@@ -56,7 +56,8 @@ interface ProductoAgregado {
   idProducto: number;
   nombre: string;
   cantidad: number;
-  precioUnitario: number;
+  precioCompra: number;
+  precioVenta: number;
   fechaVencimiento: Date | null;
   perecible: boolean;
 }
@@ -82,7 +83,8 @@ const RegisterSupplierInput = () => {
   const [selectedProduct, setSelectedProduct] =
     useState<ProductoProveedor | null>(null);
   const [quantity, setQuantity] = useState<number | "">("");
-  const [price, setPrice] = useState<number | "">("");
+  const [purchasePrice, setPurchasePrice] = useState<number | "">("");
+  const [salePrice, setSalePrice] = useState<number | "">("");
   const [expirationDate, setExpirationDate] = useState<Date | null>(null);
 
   // Lista de productos a enviar
@@ -93,7 +95,8 @@ const RegisterSupplierInput = () => {
     productId: number;
     productName: string;
     newQuantity: number;
-    newPrice: number;
+    newPurchasePrice: number;
+    newSalePrice: number;
     newExpirationDate: Date | null;
   } | null>(null);
 
@@ -174,7 +177,8 @@ const RegisterSupplierInput = () => {
     setSelectedProduct(product || null);
     // Resetear campos
     setQuantity("");
-    setPrice("");
+    setPurchasePrice("");
+    setSalePrice("");
     setExpirationDate(null);
   };
 
@@ -184,20 +188,25 @@ const RegisterSupplierInput = () => {
       toast.error("Debe seleccionar un producto y una cantidad válida");
       return;
     }
-    if (price === "" || !isFinite(Number(price))) {
-      toast.error("Debe ingresar un precio válido");
+    if (purchasePrice === "" || !isFinite(Number(purchasePrice))) {
+      toast.error("Debe ingresar un precio de compra válido");
       return;
     }
-    const priceNum = Number(price);
-    if (priceNum <= 0) {
-      toast.error("El precio debe ser mayor a 0");
+    const purchasePriceNum = Number(purchasePrice);
+    if (purchasePriceNum <= 0) {
+      toast.error("El precio de compra debe ser mayor a 0");
       return;
     }
-    if (priceNum > 1000000) {
-      toast.error("El precio es demasiado alto (máx. 1,000,000)");
+
+    if (salePrice === "" || !isFinite(Number(salePrice))) {
+      toast.error("Debe ingresar un precio de venta válido");
       return;
     }
-    // Simplificado para permitir más decimales si es necesario, el backend maneja (10, 2)
+    const salePriceNum = Number(salePrice);
+    if (salePriceNum <= 0) {
+      toast.error("El precio de venta debe ser mayor a 0");
+      return;
+    }
 
     if (selectedProduct?.esPerecible) {
       if (!expirationDate) {
@@ -219,7 +228,8 @@ const RegisterSupplierInput = () => {
       idProducto: selectedProduct.idProducto,
       nombre: selectedProduct.nombreProducto,
       cantidad: Number(quantity),
-      precioUnitario: priceNum,
+      precioCompra: purchasePriceNum,
+      precioVenta: salePriceNum,
       fechaVencimiento: expirationDate || null,
       perecible: selectedProduct.esPerecible || false,
     };
@@ -233,7 +243,8 @@ const RegisterSupplierInput = () => {
         productId: newProduct.idProducto,
         productName: newProduct.nombre,
         newQuantity: newProduct.cantidad,
-        newPrice: newProduct.precioUnitario,
+        newPurchasePrice: newProduct.precioCompra,
+        newSalePrice: newProduct.precioVenta,
         newExpirationDate: newProduct.fechaVencimiento,
       });
       return;
@@ -247,7 +258,8 @@ const RegisterSupplierInput = () => {
   const resetProductFields = () => {
     setSelectedProduct(null);
     setQuantity("");
-    setPrice("");
+    setPurchasePrice("");
+    setSalePrice("");
     setExpirationDate(null);
   };
 
@@ -259,7 +271,8 @@ const RegisterSupplierInput = () => {
           ? {
               ...p,
               cantidad: duplicateConfirmation.newQuantity,
-              precioUnitario: duplicateConfirmation.newPrice,
+              precioCompra: duplicateConfirmation.newPurchasePrice,
+              precioVenta: duplicateConfirmation.newSalePrice,
               fechaVencimiento: duplicateConfirmation.newExpirationDate,
             }
           : p
@@ -286,7 +299,8 @@ const RegisterSupplierInput = () => {
       detalles: addedProducts.map((p) => ({
         idProducto: p.idProducto,
         cantidad: p.cantidad,
-        precioUnitario: p.precioUnitario,
+        precioCompra: p.precioCompra,
+        precioVenta: p.precioVenta,
         // Convertir Date a ISO string si existe
         fechaVencimiento: p.fechaVencimiento
           ? p.fechaVencimiento.toISOString()
@@ -442,16 +456,35 @@ const RegisterSupplierInput = () => {
                             />
                           </div>
                           <div className="space-y-2">
-                            <FormLabel>Precio unitario *</FormLabel>
+                            <FormLabel>Precio Compra *</FormLabel>
                             <Input
                               type="number"
                               placeholder="0.00"
                               inputMode="decimal"
                               step="0.01"
                               min="0.01"
-                              value={price}
+                              value={purchasePrice}
                               onChange={(e) =>
-                                setPrice(
+                                setPurchasePrice(
+                                  e.target.value === ""
+                                    ? ""
+                                    : Number(e.target.value)
+                                )
+                              }
+                              className="h-11"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <FormLabel>Precio Venta *</FormLabel>
+                            <Input
+                              type="number"
+                              placeholder="0.00"
+                              inputMode="decimal"
+                              step="0.01"
+                              min="0.01"
+                              value={salePrice}
+                              onChange={(e) =>
+                                setSalePrice(
                                   e.target.value === ""
                                     ? ""
                                     : Number(e.target.value)
@@ -591,13 +624,14 @@ const RegisterSupplierInput = () => {
                                 Cantidad: {product.cantidad}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                Precio unitario:{" "}
-                                {product.precioUnitario.toFixed(2)}
+                                Precio Compra:{" "}
+                                {product.precioCompra.toFixed(2)} | Venta:{" "}
+                                {product.precioVenta.toFixed(2)}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                Subtotal:{" "}
+                                Subtotal (Compra):{" "}
                                 {(
-                                  product.cantidad * product.precioUnitario
+                                  product.cantidad * product.precioCompra
                                 ).toFixed(2)}
                               </p>
                               {product.perecible ? (
@@ -627,7 +661,7 @@ const RegisterSupplierInput = () => {
                           <span className="ml-1">
                             {addedProducts
                               .reduce(
-                                (acc, p) => acc + p.cantidad * p.precioUnitario,
+                                (acc, p) => acc + p.cantidad * p.precioCompra,
                                 0
                               )
                               .toFixed(2)}
@@ -672,7 +706,7 @@ const RegisterSupplierInput = () => {
                               {item.detalles.map((p, i) => (
                                 <p key={i} className="leading-snug">
                                   • {p.nombreProducto}: {p.cantidad} und. |
-                                  Precio: {p.precioUnitario.toFixed(2)} |
+                                  P. Compra: {p.precioCompra.toFixed(2)} |
                                   Subtotal: {p.subtotal.toFixed(2)}
                                 </p>
                               ))}
