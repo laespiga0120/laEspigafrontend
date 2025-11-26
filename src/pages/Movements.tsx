@@ -25,13 +25,40 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { History, ArrowUpCircle, ArrowDownCircle, Edit, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { History, ArrowUpCircle, ArrowDownCircle, Edit, Plus, Trash2, ChevronDown, ChevronUp, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Check, ChevronsUpDown } from "lucide-react";
 
 interface ProductoMovimiento {
   producto: string;
   cantidad: number;
+  precioCompra?: number; // Para Entradas
+  precioVenta?: number;  // Para Salidas
 }
 
 interface Movement {
@@ -48,8 +75,8 @@ const mockMovements: Movement[] = [
     id: "1",
     tipo: "Entrada",
     productos: [
-      { producto: "Laptop Dell XPS 15", cantidad: 10 },
-      { producto: "Mouse Logitech MX Master", cantidad: 15 },
+      { producto: "Laptop Dell XPS 15", cantidad: 10, precioCompra: 3500 },
+      { producto: "Mouse Logitech MX Master", cantidad: 15, precioCompra: 250 },
     ],
     fecha: "2025-11-10",
     hora: "09:30",
@@ -59,7 +86,7 @@ const mockMovements: Movement[] = [
     id: "2",
     tipo: "Salida",
     productos: [
-      { producto: "Mouse Logitech MX Master", cantidad: 5 },
+      { producto: "Mouse Logitech MX Master", cantidad: 5, precioVenta: 350 },
     ],
     fecha: "2025-11-10",
     hora: "11:45",
@@ -69,9 +96,9 @@ const mockMovements: Movement[] = [
     id: "3",
     tipo: "Entrada",
     productos: [
-      { producto: "Teclado Mecánico Corsair", cantidad: 15 },
-      { producto: "Cable HDMI 2.1", cantidad: 30 },
-      { producto: "Monitor Samsung 27\"", cantidad: 8 },
+      { producto: "Teclado Mecánico Corsair", cantidad: 15, precioCompra: 400 },
+      { producto: "Cable HDMI 2.1", cantidad: 30, precioCompra: 45 },
+      { producto: "Monitor Samsung 27\"", cantidad: 8, precioCompra: 800 },
     ],
     fecha: "2025-11-11",
     hora: "08:15",
@@ -81,7 +108,7 @@ const mockMovements: Movement[] = [
     id: "4",
     tipo: "Salida",
     productos: [
-      { producto: "Monitor Samsung 27\"", cantidad: 3 },
+      { producto: "Monitor Samsung 27\"", cantidad: 3, precioVenta: 1200 },
     ],
     fecha: "2025-11-11",
     hora: "14:20",
@@ -91,7 +118,7 @@ const mockMovements: Movement[] = [
     id: "5",
     tipo: "Entrada",
     productos: [
-      { producto: "Cable HDMI 2.1", cantidad: 50 },
+      { producto: "Cable HDMI 2.1", cantidad: 50, precioCompra: 40 },
     ],
     fecha: "2025-11-12",
     hora: "10:00",
@@ -101,8 +128,8 @@ const mockMovements: Movement[] = [
     id: "6",
     tipo: "Salida",
     productos: [
-      { producto: "Laptop Dell XPS 15", cantidad: 2 },
-      { producto: "Disco Duro Externo 2TB", cantidad: 5 },
+      { producto: "Laptop Dell XPS 15", cantidad: 2, precioVenta: 4500 },
+      { producto: "Disco Duro Externo 2TB", cantidad: 5, precioVenta: 300 },
     ],
     fecha: "2025-11-12",
     hora: "16:30",
@@ -112,7 +139,7 @@ const mockMovements: Movement[] = [
     id: "7",
     tipo: "Entrada",
     productos: [
-      { producto: "Disco Duro Externo 2TB", cantidad: 20 },
+      { producto: "Disco Duro Externo 2TB", cantidad: 20, precioCompra: 180 },
     ],
     fecha: "2025-11-13",
     hora: "09:00",
@@ -121,12 +148,12 @@ const mockMovements: Movement[] = [
 ];
 
 const mockProducts = [
-  "Laptop Dell XPS 15",
-  "Mouse Logitech MX Master",
-  "Teclado Mecánico Corsair",
-  "Monitor Samsung 27\"",
-  "Cable HDMI 2.1",
-  "Disco Duro Externo 2TB",
+  { name: "Laptop Dell XPS 15", price: 3500 },
+  { name: "Mouse Logitech MX Master", price: 250 },
+  { name: "Teclado Mecánico Corsair", price: 400 },
+  { name: "Monitor Samsung 27\"", price: 800 },
+  { name: "Cable HDMI 2.1", price: 45 },
+  { name: "Disco Duro Externo 2TB", price: 180 },
 ];
 
 const Movements = () => {
@@ -137,9 +164,24 @@ const Movements = () => {
   const [tipoMovimiento, setTipoMovimiento] = useState<string>("todos");
   const [productoSeleccionado, setProductoSeleccionado] = useState<string>("todos");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  
+  // Edit Dialog State
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingMovement, setEditingMovement] = useState<Movement | null>(null);
   const [editFormData, setEditFormData] = useState<Movement | null>(null);
+
+  // New Product State for Edit Modal
+  const [newProductSelection, setNewProductSelection] = useState<string>("");
+  const [newProductQuantity, setNewProductQuantity] = useState<string>("");
+
+  // Confirmation Dialogs State
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [movementToDelete, setMovementToDelete] = useState<string | null>(null);
+  
+  const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
+  
+  const [removeProductConfirmationOpen, setRemoveProductConfirmationOpen] = useState(false);
+  const [productIndexToRemove, setProductIndexToRemove] = useState<number | null>(null);
 
   const movimientosOrdenados = [...movements].sort((a, b) => {
     const dateA = new Date(`${a.fecha}T${a.hora}`);
@@ -175,7 +217,13 @@ const Movements = () => {
   const handleEditMovement = (movement: Movement) => {
     setEditingMovement(movement);
     setEditFormData(JSON.parse(JSON.stringify(movement)));
+    setNewProductSelection("");
+    setNewProductQuantity("");
     setEditDialogOpen(true);
+  };
+
+  const confirmSaveEdit = () => {
+    setSaveConfirmationOpen(true);
   };
 
   const handleSaveEdit = () => {
@@ -190,39 +238,86 @@ const Movements = () => {
       description: "El movimiento se ha modificado exitosamente",
     });
 
+    setSaveConfirmationOpen(false);
     setEditDialogOpen(false);
     setEditingMovement(null);
     setEditFormData(null);
   };
 
-  const handleAddProduct = () => {
-    if (!editFormData) return;
+  const handleAddNewProduct = () => {
+    if (!editFormData || !newProductSelection || !newProductQuantity) return;
+
+    const quantity = parseInt(newProductQuantity);
+    if (isNaN(quantity) || quantity <= 0) return;
+
+    const productData = mockProducts.find(p => p.name === newProductSelection);
+    const price = productData ? productData.price : 0;
+
+    const newProduct: ProductoMovimiento = {
+      producto: newProductSelection,
+      cantidad: quantity,
+    };
+
+    if (editFormData.tipo === "Entrada") {
+      newProduct.precioCompra = price;
+    } else {
+      newProduct.precioVenta = price * 1.2; // Simulating a margin for sales
+    }
 
     setEditFormData({
       ...editFormData,
-      productos: [...editFormData.productos, { producto: "", cantidad: 0 }]
+      productos: [...editFormData.productos, newProduct]
     });
+
+    setNewProductSelection("");
+    setNewProductQuantity("");
   };
 
-  const handleRemoveProduct = (index: number) => {
-    if (!editFormData) return;
+  const confirmRemoveProduct = (index: number) => {
+    setProductIndexToRemove(index);
+    setRemoveProductConfirmationOpen(true);
+  };
+
+  const handleRemoveProduct = () => {
+    if (!editFormData || productIndexToRemove === null) return;
 
     setEditFormData({
       ...editFormData,
-      productos: editFormData.productos.filter((_, i) => i !== index)
+      productos: editFormData.productos.filter((_, i) => i !== productIndexToRemove)
     });
+
+    setRemoveProductConfirmationOpen(false);
+    setProductIndexToRemove(null);
   };
 
-  const handleProductChange = (index: number, field: 'producto' | 'cantidad', value: string | number) => {
+  const handleProductQuantityChange = (index: number, value: string) => {
     if (!editFormData) return;
 
+    const quantity = parseInt(value);
     const newProductos = [...editFormData.productos];
-    newProductos[index] = { ...newProductos[index], [field]: value };
+    newProductos[index] = { ...newProductos[index], cantidad: isNaN(quantity) ? 0 : quantity };
 
     setEditFormData({
       ...editFormData,
       productos: newProductos
     });
+  };
+
+  const confirmDeleteMovement = (id: string) => {
+    setMovementToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteMovement = () => {
+    if (movementToDelete) {
+      setMovements(movements.filter(m => m.id !== movementToDelete));
+      toast({
+        title: "Movimiento eliminado",
+        description: "El movimiento ha sido eliminado exitosamente",
+      });
+      setDeleteDialogOpen(false);
+      setMovementToDelete(null);
+    }
   };
 
   return (
@@ -292,8 +387,8 @@ const Movements = () => {
                       <SelectContent className="bg-popover">
                         <SelectItem value="todos">Todos</SelectItem>
                         {mockProducts.map((producto) => (
-                          <SelectItem key={producto} value={producto}>
-                            {producto}
+                          <SelectItem key={producto.name} value={producto.name}>
+                            {producto.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -315,7 +410,6 @@ const Movements = () => {
                       <TableHead className="font-semibold w-12"></TableHead>
                       <TableHead className="font-semibold">Tipo</TableHead>
                       <TableHead className="font-semibold">Productos</TableHead>
-                      <TableHead className="text-center font-semibold">Cantidad Total</TableHead>
                       <TableHead className="font-semibold">Fecha</TableHead>
                       <TableHead className="font-semibold">Hora</TableHead>
                       <TableHead className="font-semibold">Responsable</TableHead>
@@ -325,34 +419,37 @@ const Movements = () => {
                   <TableBody>
                     {movimientosFiltrados.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                           No se encontraron movimientos con los filtros aplicados
                         </TableCell>
                       </TableRow>
                     ) : (
                       movimientosFiltrados.map((movimiento) => {
                         const isExpanded = expandedRows.has(movimiento.id);
-                        const totalCantidad = movimiento.productos.reduce((sum, p) => sum + p.cantidad, 0);
                         const hasMultipleProducts = movimiento.productos.length > 1;
+                        
+                        // Calculate total amount for the movement
+                        const totalMonto = movimiento.productos.reduce((acc, prod) => {
+                          const price = movimiento.tipo === "Entrada" ? (prod.precioCompra || 0) : (prod.precioVenta || 0);
+                          return acc + (prod.cantidad * price);
+                        }, 0);
 
                         return (
                           <>
                             <TableRow key={movimiento.id} className="hover:bg-muted/30 transition-colors">
                               <TableCell>
-                                {hasMultipleProducts && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => toggleExpandRow(movimiento.id)}
-                                    className="h-8 w-8 p-0"
-                                  >
-                                    {isExpanded ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleExpandRow(movimiento.id)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
@@ -388,36 +485,78 @@ const Movements = () => {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-center font-semibold">{totalCantidad}</TableCell>
                               <TableCell>{new Date(movimiento.fecha).toLocaleDateString('es-ES')}</TableCell>
                               <TableCell className="text-muted-foreground">{movimiento.hora}</TableCell>
                               <TableCell className="text-muted-foreground">{movimiento.responsable}</TableCell>
                               <TableCell className="text-center">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEditMovement(movimiento)}
-                                  className="gap-2"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                  Modificar
-                                </Button>
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEditMovement(movimiento)}
+                                    className="gap-2"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    Modificar
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => confirmDeleteMovement(movimiento.id)}
+                                    className="gap-2"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Eliminar
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
-                            {hasMultipleProducts && isExpanded && (
+                            {isExpanded && (
                               <TableRow>
-                                <TableCell colSpan={8} className="bg-muted/20">
-                                  <div className="p-4 space-y-2">
-                                    <p className="text-sm font-semibold text-foreground mb-3">Detalle de productos:</p>
-                                    <div className="grid gap-2">
-                                      {movimiento.productos.map((prod, idx) => (
-                                        <div key={idx} className="flex items-center justify-between bg-card p-3 rounded-lg border border-border/50">
-                                          <span className="font-medium">{prod.producto}</span>
-                                          <Badge variant="outline" className="ml-2">
-                                            Cantidad: {prod.cantidad}
-                                          </Badge>
-                                        </div>
-                                      ))}
+                                <TableCell colSpan={7} className="bg-muted/20 p-0">
+                                  <div className="p-4 sm:p-6 space-y-4 animate-in fade-in-0 zoom-in-95 duration-200">
+                                    <div className="flex items-center justify-between">
+                                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                        <History className="w-4 h-4 text-muted-foreground" />
+                                        Detalle del Movimiento
+                                      </h3>
+                                      <div className="text-sm text-muted-foreground">
+                                        Registrado por: <span className="font-medium text-foreground">{movimiento.responsable}</span>
+                                      </div>
+                                    </div>
+
+                                    <div className="rounded-lg border border-border/50 overflow-hidden">
+                                      <Table>
+                                        <TableHeader className="bg-muted/50">
+                                          <TableRow>
+                                            <TableHead>Producto</TableHead>
+                                            <TableHead className="text-right">Cantidad</TableHead>
+                                            <TableHead className="text-right">
+                                              {movimiento.tipo === "Entrada" ? "Precio Compra" : "Precio Venta"}
+                                            </TableHead>
+                                            <TableHead className="text-right">Subtotal</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody className="bg-card">
+                                          {movimiento.productos.map((prod, idx) => {
+                                            const price = movimiento.tipo === "Entrada" ? (prod.precioCompra || 0) : (prod.precioVenta || 0);
+                                            const subtotal = prod.cantidad * price;
+                                            
+                                            return (
+                                              <TableRow key={idx}>
+                                                <TableCell className="font-medium">{prod.producto}</TableCell>
+                                                <TableCell className="text-right">{prod.cantidad}</TableCell>
+                                                <TableCell className="text-right">S/ {price.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right font-medium">S/ {subtotal.toFixed(2)}</TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                          <TableRow className="bg-muted/30 font-bold">
+                                            <TableCell colSpan={3} className="text-right">Total General:</TableCell>
+                                            <TableCell className="text-right text-primary">S/ {totalMonto.toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        </TableBody>
+                                      </Table>
                                     </div>
                                   </div>
                                 </TableCell>
@@ -507,62 +646,118 @@ const Movements = () => {
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Productos *</Label>
+                <Label>Agregar Producto</Label>
+                <div className="flex gap-2 items-end bg-muted/30 p-3 rounded-lg border border-border/50">
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-xs text-muted-foreground">Producto</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between",
+                            !newProductSelection && "text-muted-foreground"
+                          )}
+                        >
+                          {newProductSelection
+                            ? mockProducts.find(
+                                (product) => product.name === newProductSelection
+                              )?.name
+                            : "Seleccionar producto"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar producto..." />
+                          <CommandList>
+                            <CommandEmpty>No se encontró el producto.</CommandEmpty>
+                            <CommandGroup>
+                              {mockProducts.map((product) => (
+                                <CommandItem
+                                  key={product.name}
+                                  value={product.name}
+                                  onSelect={(currentValue) => {
+                                    setNewProductSelection(
+                                      currentValue === newProductSelection ? "" : currentValue
+                                    );
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      newProductSelection === product.name
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    )}
+                                  />
+                                  {product.name}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="w-32 space-y-2">
+                    <Label className="text-xs text-muted-foreground">Cantidad</Label>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      min="1"
+                      value={newProductQuantity}
+                      onChange={(e) => setNewProductQuantity(e.target.value)}
+                    />
+                  </div>
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddProduct}
+                    onClick={handleAddNewProduct}
+                    disabled={!newProductSelection || !newProductQuantity || parseInt(newProductQuantity) <= 0}
                     className="gap-2"
                   >
                     <Plus className="h-4 w-4" />
-                    Agregar Producto
+                    Agregar
                   </Button>
                 </div>
 
+                <Label className="mt-4 block">Lista de Productos</Label>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {editFormData.productos.map((prod, index) => (
-                    <div key={index} className="flex gap-2 items-start p-3 bg-muted/20 rounded-lg border border-border/50">
-                      <div className="flex-1 space-y-2">
-                        <Select
-                          value={prod.producto}
-                          onValueChange={(value) => handleProductChange(index, 'producto', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar producto" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {mockProducts.map((producto) => (
-                              <SelectItem key={producto} value={producto}>
-                                {producto}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-32">
-                        <Input
-                          type="number"
-                          placeholder="Cantidad"
-                          min="1"
-                          value={prod.cantidad || ""}
-                          onChange={(e) =>
-                            handleProductChange(index, 'cantidad', parseInt(e.target.value) || 0)
-                          }
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => handleRemoveProduct(index)}
-                        disabled={editFormData.productos.length === 1}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  {editFormData.productos.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground text-sm border-2 border-dashed border-border/50 rounded-lg">
+                      No hay productos en este movimiento
                     </div>
-                  ))}
+                  ) : (
+                    editFormData.productos.map((prod, index) => (
+                      <div key={index} className="flex gap-2 items-center p-3 bg-card rounded-lg border border-border/50 shadow-sm">
+                        <div className="flex-1">
+                          <span className="font-medium text-sm">{prod.producto}</span>
+                        </div>
+                        <div className="w-32">
+                          <Input
+                            type="number"
+                            placeholder="Cantidad"
+                            min="1"
+                            value={prod.cantidad || ""}
+                            onChange={(e) =>
+                              handleProductQuantityChange(index, e.target.value)
+                            }
+                            className="h-9"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={() => confirmRemoveProduct(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -572,12 +767,67 @@ const Movements = () => {
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveEdit}>
+            <Button onClick={confirmSaveEdit} className="gap-2">
+              <Save className="h-4 w-4" />
               Guardar Cambios
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de confirmación de eliminación de movimiento */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro de eliminar el movimiento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. El movimiento será eliminado permanentemente del historial.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteMovement} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de confirmación de guardar cambios */}
+      <AlertDialog open={saveConfirmationOpen} onOpenChange={setSaveConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Guardar cambios en el movimiento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se actualizará la información del movimiento y sus productos. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSaveEdit}>
+              Guardar Cambios
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de confirmación de eliminar producto de la lista */}
+      <AlertDialog open={removeProductConfirmationOpen} onOpenChange={setRemoveProductConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar producto del movimiento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              El producto será eliminado de la lista de este movimiento.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveProduct} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <footer className="container mx-auto px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-muted-foreground">
         <p>La Espiga © 2025 - Sistema de gestión para abarrotes y postres</p>
