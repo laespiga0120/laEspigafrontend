@@ -156,6 +156,13 @@ const mockProducts = [
   { name: "Disco Duro Externo 2TB", price: 180 },
 ];
 
+const mockUsers = [
+  { id: "1", name: "Carlos Mendoza", role: "ADMINISTRADOR" },
+  { id: "2", name: "Ana García", role: "VENDEDOR" },
+  { id: "3", name: "Luis Rodríguez", role: "ADMINISTRADOR" },
+  { id: "4", name: "María López", role: "VENDEDOR" },
+];
+
 const Movements = () => {
   const { toast } = useToast();
   const [movements, setMovements] = useState<Movement[]>(mockMovements);
@@ -594,13 +601,30 @@ const Movements = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="edit-responsable">Responsable *</Label>
-                  <Input
-                    id="edit-responsable"
+                  <Select
                     value={editFormData.responsable}
-                    onChange={(e) =>
-                      setEditFormData({ ...editFormData, responsable: e.target.value })
+                    onValueChange={(value) =>
+                      setEditFormData({ ...editFormData, responsable: value })
                     }
-                  />
+                  >
+                    <SelectTrigger id="edit-responsable">
+                      <SelectValue placeholder="Seleccionar responsable" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mockUsers
+                        .filter((user) => {
+                          if (editFormData.tipo === "Entrada") {
+                            return user.role === "ADMINISTRADOR";
+                          }
+                          return true; // Salida shows all (Admin + Vendedor)
+                        })
+                        .map((user) => (
+                          <SelectItem key={user.id} value={user.name}>
+                            {user.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
