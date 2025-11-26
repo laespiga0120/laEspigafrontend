@@ -162,7 +162,7 @@ const Movements = () => {
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [tipoMovimiento, setTipoMovimiento] = useState<string>("todos");
-  const [productoSeleccionado, setProductoSeleccionado] = useState<string>("todos");
+
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   
   // Edit Dialog State
@@ -193,7 +193,7 @@ const Movements = () => {
     if (fechaDesde && mov.fecha < fechaDesde) return false;
     if (fechaHasta && mov.fecha > fechaHasta) return false;
     if (tipoMovimiento !== "todos" && mov.tipo !== tipoMovimiento) return false;
-    if (productoSeleccionado !== "todos" && !mov.productos.some(p => p.producto === productoSeleccionado)) return false;
+
     return true;
   });
 
@@ -201,7 +201,7 @@ const Movements = () => {
     setFechaDesde("");
     setFechaHasta("");
     setTipoMovimiento("todos");
-    setProductoSeleccionado("todos");
+
   };
 
   const toggleExpandRow = (id: string) => {
@@ -343,7 +343,7 @@ const Movements = () => {
                   Filtros de Búsqueda
                 </h2>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Fecha Desde</label>
                     <Input
@@ -378,22 +378,7 @@ const Movements = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Producto</label>
-                    <Select value={productoSeleccionado} onValueChange={setProductoSeleccionado}>
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Todos" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover">
-                        <SelectItem value="todos">Todos</SelectItem>
-                        {mockProducts.map((producto) => (
-                          <SelectItem key={producto.name} value={producto.name}>
-                            {producto.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+
                 </div>
 
                 <div className="flex justify-end mt-4">
