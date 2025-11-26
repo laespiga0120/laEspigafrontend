@@ -59,6 +59,7 @@ export interface ProductoPorProveedorDto {
  * (Backend: DetalleHistorialDto)
  */
 export interface DetalleHistorialDto {
+  idProducto: number; // <-- AÑADIDO
   nombreProducto: string;
   cantidad: number;
   precioVenta: number;
@@ -72,9 +73,11 @@ export interface DetalleHistorialDto {
  */
 export interface MovimientoHistorialDto {
   idMovimiento: number;
-  motivo: string; // Ej: "Proveedor: Distribuidora Norte"
-  fechaMovimiento: string; // ISO DateTime string
+  motivo: string;
+  tipoMovimiento: string; // "ENTRADA" | "SALIDA"
+  fechaMovimiento: string;
   nombreUsuario: string;
+  idUsuario: number;
   detalles: DetalleHistorialDto[];
   totalGeneral: number;
 }
@@ -104,6 +107,16 @@ export interface RegistroEntradaDto {
   detalles: DetalleEntradaDto[];
 }
 // --- Servicio ---
+export interface MovimientoUpdatePayload {
+  tipoMovimiento: string;
+  idResponsable: number;
+  fecha: string; // "YYYY-MM-DD"
+  hora: string; // "HH:mm"
+  detalles: {
+    idProducto: number;
+    cantidad: number;
+  }[];
+}
 
 export const MovimientoService = {
   /**
@@ -191,4 +204,39 @@ export const MovimientoService = {
       "/api/v1/movimientos/entradas/historial"
     );
   },
+
+  
+ /**
+   * Lista movimientos con filtros
+   */
+  listarMovimientos: (fechaInicio?: string, fechaFin?: string, tipo?: string): Promise<MovimientoHistorialDto[]> => {
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append("fechaInicio", fechaInicio);
+    if (fechaFin) params.append("fechaFin", fechaFin);
+    if (tipo && tipo !== "todos") params.append("tipo", tipo);
+
+    return apiRequest<MovimientoHistorialDto[]>(`/api/v1/movimientos?${params.toString()}`, {
+      method: "GET",
+    });
+  },
+
+  /**
+   * Actualizar movimiento
+   */
+  actualizarMovimiento: (id: number, payload: MovimientoUpdatePayload): Promise<{ message: string }> => {
+    return apiRequest(`/api/v1/movimientos/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Eliminar movimiento
+   */
+  eliminarMovimiento: (id: number): Promise<{ message: string }> => {
+    return apiRequest(`/api/v1/movimientos/${id}`, {
+      method: "DELETE",
+    });
+  },
+
 };
