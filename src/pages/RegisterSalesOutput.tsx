@@ -14,7 +14,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import Sidebar from "@/components/Sidebar";
-import { ArrowDownCircle, Package, Loader2, AlertTriangle } from "lucide-react";
+import {
+  ArrowDownCircle,
+  Package,
+  Loader2,
+  AlertTriangle,
+  RotateCcw,
+  Clock,
+  Check,
+  ChevronsUpDown,
+} from "lucide-react";
 import { format } from "date-fns";
 import {
   Select,
@@ -33,6 +42,35 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MovimientoService,
@@ -40,9 +78,12 @@ import {
   RegistroSalidaPayload,
   MovimientoHistorialSalida,
 } from "@/api/movimientoService";
+import { ProductService, ProductoDetalle, LoteDetalle } from "@/api/productService";
+import { ProveedorService, Proveedor } from "@/api/proveedorService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
-// --- ESQUEMA DEL FORMULARIO ---
+// --- ESQUEMA DEL FORMULARIO PRINCIPAL ---
 const formSchema = z.object({
   producto: z.string().optional(),
   cantidad: z.coerce
@@ -53,19 +94,34 @@ const formSchema = z.object({
   motivo: z.string().min(1, { message: "Debe seleccionar un motivo" }),
 });
 
-// --- INTERFAZ LOCAL ---
+// --- ESQUEMAS PARA DEVOLUCIONES ---
+const solicitudFormSchema = z.object({
+  fechaRecepcion: z.string().min(1, { message: "Debe seleccionar una fecha" }),
+  horaRecepcion: z.string().min(1, { message: "Debe seleccionar una hora" }),
+});
+
+// --- INTERFACES LOCALES ---
 interface ProductoAgregado {
   id: number;
   nombre: string;
   cantidad: number;
-  stock: number; // Stock real (de lotes) al momento de agregar
+  stock: number;
   precioVenta: number;
 }
 
-// --- (FIX 1) COMPONENTE DE BÚSQUEDA EXTRAÍDO ---
-// Movido fuera del componente principal para evitar pérdida de foco.
+interface DevolucionPendiente {
+  id: string;
+  loteCodigo: string;
+  productoNombre: string;
+  cantidad: number;
+  proveedorNombre: string;
+  fechaRecepcion: Date;
+  registradoPor: string;
+}
+
+// --- COMPONENTE DE BÚSQUEDA EXTRAÍDO (EXISTENTE) ---
 interface ProductSearchProps {
-  field: any; // de react-hook-form
+  field: any;
   query: string;
   setQuery: (query: string) => void;
   suggestions: ProductoBusqueda[] | undefined;
@@ -100,7 +156,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
   function selectProduct(product: ProductoBusqueda) {
     field.onChange(product.idProducto.toString());
     onSelectProduct(product);
-    setQuery(""); // (FIX 3) Limpiar input después de seleccionar
+    setQuery("");
     setOpen(false);
   }
 
@@ -113,10 +169,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
             className="h-11"
             placeholder="Buscar producto por nombre"
             value={query}
-            onFocus={() => {
-              setOpen(true); // (FIX 2) Abrir al hacer foco
-              // El useQuery se activará solo con el 'query'
-            }}
+            onFocus={() => setOpen(true)}
             onChange={(e) => {
               const value = e.target.value;
               setQuery(value);
@@ -165,9 +218,8 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
               {suggestions?.map((p, idx) => (
                 <div
                   key={p.idProducto}
-                  className={`px-3 py-2 cursor-pointer hover:bg-accent/30 ${
-                    idx === highlightIndex ? "bg-accent/40" : ""
-                  }`}
+                  className={`px-3 py-2 cursor-pointer hover:bg-accent/30 ${idx === highlightIndex ? "bg-accent/40" : ""
+                    }`}
                   onMouseDown={(ev) => {
                     ev.preventDefault();
                     selectProduct(p);
@@ -176,7 +228,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
                   <div className="flex justify-between">
                     <div className="font-medium">{p.nombreProducto}</div>
                     <div className="text-xs text-muted-foreground">
-                      Stock: {p.stock} {/* <-- VIENE DEL CÁLCULO DE LOTES */}
+                      Stock: {p.stock}
                     </div>
                   </div>
                 </div>
@@ -192,6 +244,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
 
 // --- COMPONENTE PRINCIPAL ---
 const RegisterSalesOutput = () => {
+  // --- ESTADOS EXISTENTES ---
   const [customMotivo, setCustomMotivo] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<ProductoAgregado[]>(
     []
@@ -206,6 +259,19 @@ const RegisterSalesOutput = () => {
   } | null>(null);
   const [query, setQuery] = useState("");
 
+  // --- NUEVOS ESTADOS PARA DEVOLUCIONES ---
+  const [showDevolucionDialog, setShowDevolucionDialog] = useState(false);
+  const [selectedProductDevolucionId, setSelectedProductDevolucionId] =
+    useState<number | null>(null);
+  const [openCombobox, setOpenCombobox] = useState(false);
+  const [selectedLote, setSelectedLote] = useState<LoteDetalle | null>(null);
+  const [showSolicitudDialog, setShowSolicitudDialog] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [devolucionesPendientes, setDevolucionesPendientes] = useState<
+    DevolucionPendiente[]
+  >([]);
+  const [searchDevolucionQuery, setSearchDevolucionQuery] = useState("");
+
   const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -217,7 +283,15 @@ const RegisterSalesOutput = () => {
     },
   });
 
-  // 1. Obtener Historial de Salidas
+  const solicitudForm = useForm<z.infer<typeof solicitudFormSchema>>({
+    resolver: zodResolver(solicitudFormSchema),
+    defaultValues: {
+      fechaRecepcion: "",
+      horaRecepcion: "",
+    },
+  });
+
+  // --- QUERIES EXISTENTES ---
   const {
     data: historial,
     isLoading: isLoadingHistory,
@@ -225,26 +299,20 @@ const RegisterSalesOutput = () => {
   } = useQuery({
     queryKey: ["historialSalidas"],
     queryFn: MovimientoService.obtenerHistorialSalidas,
-    // (FIX 4) Desactivar refetch automático al enfocar esta query
     refetchOnWindowFocus: false,
   });
 
-  // 2. Búsqueda de Productos
   const { data: suggestions, isLoading: isLoadingProducts } = useQuery({
     queryKey: ["buscarProductos", query],
-    // (FIX 2) Llamar al servicio incluso si el query está vacío.
-    // El backend ahora maneja esto y devuelve todos los productos.
     queryFn: () => MovimientoService.buscarProductos(query),
-    staleTime: 1000, // Un cache breve
+    staleTime: 1000,
   });
 
-  // 3. Mutación para Registrar Salida
   const registrarSalidaMutation = useMutation({
     mutationFn: MovimientoService.registrarSalida,
     onSuccess: () => {
       toast.success("Salida registrada exitosamente.");
       queryClient.invalidateQueries({ queryKey: ["historialSalidas"] });
-      // Invalidar 'buscarProductos' con CUALQUIER query para refrescar el stock en todos lados
       queryClient.invalidateQueries({ queryKey: ["buscarProductos"] });
 
       form.reset();
@@ -256,7 +324,6 @@ const RegisterSalesOutput = () => {
       setCantidadKey((k) => k + 1);
     },
     onError: (error: Error) => {
-      // Intentar parsear el JSON de error del backend
       let errorMessage = "No se pudo conectar al servidor.";
       try {
         const errorJson = JSON.parse(error.message);
@@ -264,19 +331,45 @@ const RegisterSalesOutput = () => {
       } catch (e) {
         errorMessage = error.message;
       }
-
       toast.error("Error al registrar la salida", {
         description: errorMessage,
       });
     },
   });
 
+  // --- NUEVAS QUERIES PARA DEVOLUCIONES ---
+
+  // Buscar productos para el diálogo de devolución
+  const { data: searchDevolucionResults } = useQuery({
+    queryKey: ["buscarProductosDevolucion", searchDevolucionQuery],
+    queryFn: () => MovimientoService.buscarProductos(searchDevolucionQuery),
+    enabled: showDevolucionDialog && searchDevolucionQuery.length > 0,
+    staleTime: 1000,
+  });
+
+  // Obtener detalles del producto seleccionado para devolución (incluye lotes)
+  const { data: productDetails } = useQuery({
+    queryKey: ["productoDetalle", selectedProductDevolucionId],
+    queryFn: () =>
+      selectedProductDevolucionId
+        ? ProductService.getProductoDetalle(selectedProductDevolucionId)
+        : Promise.reject("No ID"),
+    enabled: !!selectedProductDevolucionId,
+  });
+
+  // Obtener lista de proveedores (para mostrar info en solicitud)
+  const { data: proveedores } = useQuery({
+    queryKey: ["proveedores"],
+    queryFn: ProveedorService.listProveedores,
+    enabled: showSolicitudDialog,
+  });
+
+  // --- LÓGICA DEL FORMULARIO PRINCIPAL ---
   const cantidad = form.watch("cantidad");
   const hasStockError =
     selectedProduct && cantidad && cantidad > selectedProduct.stock;
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    // ... (código existente de onSubmit, sigue igual) ...
     if (selectedProducts.length === 0) {
       toast.error("Debe agregar al menos un producto a la salida.");
       return;
@@ -295,17 +388,14 @@ const RegisterSalesOutput = () => {
   };
 
   function addProduct() {
-    // ... (código existente de addProduct, sigue igual) ...
     if (!selectedProduct) {
       toast.error("Debe seleccionar un producto antes de agregarlo");
       return;
     }
-
     if (!cantidad || cantidad <= 0) {
       toast.error("Debe ingresar una cantidad válida antes de agregarlo");
       return;
     }
-
     if (cantidad > selectedProduct.stock) {
       toast.error(
         "La cantidad supera el stock disponible del producto seleccionado"
@@ -336,24 +426,20 @@ const RegisterSalesOutput = () => {
       },
     ]);
 
-    // Resetear campos de producto
     form.setValue("producto", "");
     setSelectedProduct(null);
-    setQuery(""); // Esto ya estaba, es correcto
+    setQuery("");
     form.resetField("cantidad");
     form.clearErrors("cantidad");
     setCantidadKey((k) => k + 1);
   }
 
   function removeProduct(productId: number) {
-    // ... (código existente de removeProduct, sigue igual) ...
     setSelectedProducts((prev) => prev.filter((p) => p.id !== productId));
   }
 
   function confirmUpdate() {
-    // ... (código existente de confirmUpdate, sigue igual) ...
     if (!confirmation) return;
-
     setSelectedProducts((prev) =>
       prev.map((product) =>
         product.nombre === confirmation.productName
@@ -366,9 +452,68 @@ const RegisterSalesOutput = () => {
   }
 
   function cancelUpdate() {
-    // ... (código existente de cancelUpdate, sigue igual) ...
     setConfirmation(null);
   }
+
+  // --- LÓGICA DE DEVOLUCIONES ---
+
+  const handleSolicitarDevolucion = (lote: LoteDetalle) => {
+    setSelectedLote(lote);
+    setShowSolicitudDialog(true);
+  };
+
+  const handleConfirmarSolicitud = () => {
+    // Validar formulario
+    solicitudForm.trigger().then((isValid) => {
+      if (isValid) {
+        setShowSolicitudDialog(false);
+        setShowConfirmDialog(true);
+      }
+    });
+  };
+
+  const handleRegistrarDevolucion = () => {
+    const values = solicitudForm.getValues();
+    if (!productDetails || !selectedLote) return;
+
+    // Buscar proveedor en la lista cargada
+    // Nota: productDetails tiene el nombre del proveedor, pero no el ID directo a veces,
+    // o el backend devuelve el nombre. En ProductDetalle tenemos 'proveedor' como string.
+    // Intentaremos buscar por nombre si no tenemos ID, o usar el string.
+    // Para este caso, usaremos el string que viene en productDetails.
+    const proveedorNombre = productDetails.proveedor || "Desconocido";
+
+    const fechaRecepcion = new Date(
+      `${values.fechaRecepcion}T${values.horaRecepcion}`
+    );
+
+    const nuevaDevolucion: DevolucionPendiente = {
+      id: Date.now().toString(),
+      loteCodigo: selectedLote.codigoLote,
+      productoNombre: productDetails.nombre,
+      cantidad: selectedLote.cantidad,
+      proveedorNombre: proveedorNombre,
+      fechaRecepcion: fechaRecepcion,
+      registradoPor: "Usuario Actual", // Podríamos sacar esto del contexto de auth si existiera
+    };
+
+    setDevolucionesPendientes((prev) => [nuevaDevolucion, ...prev]);
+    toast.success("Devolución registrada correctamente (Local)");
+
+    setShowConfirmDialog(false);
+    setShowSolicitudDialog(false);
+    setShowDevolucionDialog(false);
+    setSelectedProductDevolucionId(null);
+    setSelectedLote(null);
+    solicitudForm.reset();
+  };
+
+  // Encontrar info del proveedor para mostrar en el dialog
+  // Como ProductDetalle solo da el nombre, buscamos en la lista de proveedores si coincide el nombre
+  // para obtener telefono, etc.
+  const proveedorInfo = proveedores?.find(
+    (p) => p.nombreProveedor === productDetails?.proveedor
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted flex flex-col">
@@ -403,7 +548,6 @@ const RegisterSalesOutput = () => {
                       control={form.control}
                       name="producto"
                       render={({ field }) => (
-                        // (FIX 1) Usar el componente extraído
                         <ProductSearch
                           field={field}
                           query={query}
@@ -430,7 +574,7 @@ const RegisterSalesOutput = () => {
                         <p className="text-sm font-medium">
                           Stock actual:{" "}
                           <span className="text-foreground">
-                            {selectedProduct.stock} {/* <-- Stock REAL */}
+                            {selectedProduct.stock}
                           </span>
                         </p>
                         {selectedProduct.descripcionProducto && (
@@ -450,7 +594,6 @@ const RegisterSalesOutput = () => {
                     <FormField
                       control={form.control}
                       name="cantidad"
-                      // ... (código existente de FormField 'cantidad', sigue igual) ...
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Cantidad a retirar *</FormLabel>
@@ -479,7 +622,6 @@ const RegisterSalesOutput = () => {
                       type="button"
                       className="mt-2 h-10 px-4 py-2 text-sm font-medium bg-primary text-white rounded-md self-end"
                       onClick={addProduct}
-                      // ... (código existente del botón 'Agregar Producto', sigue igual) ...
                       disabled={
                         isLocked ||
                         !selectedProduct ||
@@ -492,7 +634,6 @@ const RegisterSalesOutput = () => {
                     </Button>
 
                     {selectedProducts.length > 0 && (
-                      // ... (código existente del mapeo de 'selectedProducts', sigue igual) ...
                       <div className="space-y-4 mt-4">
                         {selectedProducts.map((product) => (
                           <div
@@ -508,8 +649,9 @@ const RegisterSalesOutput = () => {
                                 {product.stock}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                Precio: {product.precioVenta?.toFixed(2) ?? "N/A"}{" "}
-                                | Subtotal:{" "}
+                                Precio:{" "}
+                                {product.precioVenta?.toFixed(2) ?? "N/A"} |
+                                Subtotal:{" "}
                                 {(
                                   product.cantidad * (product.precioVenta || 0)
                                 ).toFixed(2)}
@@ -530,7 +672,6 @@ const RegisterSalesOutput = () => {
                     <FormField
                       control={form.control}
                       name="motivo"
-                      // ... (código existente de FormField 'motivo', sigue igual) ...
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Motivo de salida *</FormLabel>
@@ -588,7 +729,6 @@ const RegisterSalesOutput = () => {
                     <Button
                       type="submit"
                       className="w-full h-12"
-                      // ... (código existente del botón 'Registrar Salida', sigue igual) ...
                       disabled={
                         registrarSalidaMutation.isPending ||
                         selectedProducts.length === 0
@@ -641,38 +781,97 @@ const RegisterSalesOutput = () => {
                         <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
                           <Package className="w-4 h-4 text-destructive" />
                         </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-sm">
-                              Motivo: {item.motivo}
-                            </h4>
-                            <div className="text-xs text-muted-foreground mt-1 space-y-1">
-                              {item.detalles.map((detalle, index) => (
-                                <p key={index} className="leading-snug">
-                                  • {detalle.nombreProducto}: {detalle.cantidad}{" "}
-                                  und. | Precio:{" "}
-                                  {detalle.precioVenta?.toFixed(2) ?? "N/A"} |
-                                  Subtotal:{" "}
-                                  {detalle.subtotal?.toFixed(2) ?? "N/A"}
-                                </p>
-                              ))}
-                              <p className="font-semibold text-foreground pt-1 border-t border-border">
-                                Total: S/ {item.totalGeneral?.toFixed(2) ?? "N/A"}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm">
+                            Motivo: {item.motivo}
+                          </h4>
+                          <div className="text-xs text-muted-foreground mt-1 space-y-1">
+                            {item.detalles.map((detalle, index) => (
+                              <p key={index} className="leading-snug">
+                                • {detalle.nombreProducto}: {detalle.cantidad}{" "}
+                                und. | Precio:{" "}
+                                {detalle.precioVenta?.toFixed(2) ?? "N/A"} |
+                                Subtotal:{" "}
+                                {detalle.subtotal?.toFixed(2) ?? "N/A"}
                               </p>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {format(
-                                new Date(item.fechaMovimiento),
-                                "dd/MM/yyyy HH:mm"
-                              )}{" "}
-                              - {item.nombreUsuario}
+                            ))}
+                            <p className="font-semibold text-foreground pt-1 border-t border-border">
+                              Total: S/ {item.totalGeneral?.toFixed(2) ?? "N/A"}
                             </p>
                           </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {format(
+                              new Date(item.fechaMovimiento),
+                              "dd/MM/yyyy HH:mm"
+                            )}{" "}
+                            - {item.nombreUsuario}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
+
+            {/* --- SECCIÓN DE DEVOLUCIONES --- */}
+
+            {/* Botón de Devolución por Vencimiento */}
+            <div className="mt-8 lg:ml-0 ml-14">
+              <Button
+                onClick={() => setShowDevolucionDialog(true)}
+                className="w-full sm:w-auto h-12 flex items-center gap-2"
+                variant="outline"
+              >
+                <RotateCcw className="w-5 h-5" />
+                Devolución de Producto por Vencimiento
+              </Button>
+            </div>
+
+            {/* Lista de Devoluciones Pendientes */}
+            {devolucionesPendientes.length > 0 && (
+              <div className="mt-6 lg:ml-0 ml-14 bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl shadow-lg p-6">
+                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-primary" />
+                  Devoluciones Pendientes por Recibir
+                </h2>
+                <div className="space-y-3">
+                  {devolucionesPendientes.map((devolucion) => (
+                    <div
+                      key={devolucion.id}
+                      className="p-4 bg-background/50 border border-border rounded-lg"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className="font-semibold">
+                            {devolucion.productoNombre}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            Lote: {devolucion.loteCodigo}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Proveedor: {devolucion.proveedorNombre}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Cantidad: {devolucion.cantidad}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Fecha de recepción:{" "}
+                            {format(devolucion.fechaRecepcion, "dd/MM/yyyy HH:mm")}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Registrado por: {devolucion.registradoPor}
+                          </p>
+                        </div>
+                        <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full">
+                          Pendiente
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -681,7 +880,9 @@ const RegisterSalesOutput = () => {
         La Espiga © 2025 - Sistema de gestión para abarrotes y postres
       </footer>
 
-      {/* Diálogo de Confirmación */}
+      {/* --- DIÁLOGOS --- */}
+
+      {/* Diálogo de Confirmación de Actualización de Cantidad (Existente) */}
       {confirmation && (
         <AlertDialog
           open={!!confirmation}
@@ -708,6 +909,287 @@ const RegisterSalesOutput = () => {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* Dialog Principal de Devolución */}
+      <Dialog
+        open={showDevolucionDialog}
+        onOpenChange={setShowDevolucionDialog}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Devolución de Producto por Vencimiento</DialogTitle>
+            <DialogDescription>
+              Busque y seleccione el producto para gestionar su devolución
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Combobox de búsqueda de productos */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Buscar Producto *</label>
+              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCombobox}
+                    className="w-full justify-between h-11"
+                  >
+                    {selectedProductDevolucionId
+                      ? searchDevolucionResults?.find(
+                        (p) => p.idProducto === selectedProductDevolucionId
+                      )?.nombreProducto || "Producto seleccionado"
+                      : "Escriba para buscar un producto..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Buscar producto..."
+                      value={searchDevolucionQuery}
+                      onValueChange={setSearchDevolucionQuery}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No se encontraron productos.</CommandEmpty>
+                      <CommandGroup>
+                        {searchDevolucionResults?.map((product) => (
+                          <CommandItem
+                            key={product.idProducto}
+                            value={product.nombreProducto}
+                            onSelect={() => {
+                              setSelectedProductDevolucionId(product.idProducto);
+                              setOpenCombobox(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedProductDevolucionId === product.idProducto
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              )}
+                            />
+                            {product.nombreProducto}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Tabla de Lotes */}
+            {selectedProductDevolucionId && productDetails && (
+              <div>
+                <h3 className="text-md font-semibold mb-3">
+                  Lotes disponibles de {productDetails.nombre}
+                </h3>
+                {productDetails.lotes && productDetails.lotes.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Lote</TableHead>
+                          <TableHead>Cantidad</TableHead>
+                          <TableHead>Fecha de Vencimiento</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productDetails.lotes.map((lote) => {
+                          const fechaVenc = lote.fechaVencimiento
+                            ? new Date(lote.fechaVencimiento)
+                            : null;
+                          const isVencido =
+                            fechaVenc && fechaVenc < new Date();
+                          return (
+                            <TableRow key={lote.codigoLote}>
+                              <TableCell className="font-medium">
+                                {lote.codigoLote}
+                              </TableCell>
+                              <TableCell>{lote.cantidad}</TableCell>
+                              <TableCell>
+                                <span
+                                  className={
+                                    isVencido
+                                      ? "text-destructive font-semibold"
+                                      : ""
+                                  }
+                                >
+                                  {fechaVenc
+                                    ? format(fechaVenc, "dd/MM/yyyy")
+                                    : "N/A"}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  size="sm"
+                                  // Habilitamos devolución incluso si no está vencido,
+                                  // o podemos restringirlo solo a vencidos si se desea.
+                                  // Por ahora lo dejamos abierto pero marcamos visualmente.
+                                  onClick={() => handleSolicitarDevolucion(lote)}
+                                >
+                                  Solicitar Devolución
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No hay lotes registrados para este producto.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Solicitud de Devolución */}
+      <Dialog
+        open={showSolicitudDialog}
+        onOpenChange={setShowSolicitudDialog}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Solicitar Devolución de Producto</DialogTitle>
+            <DialogDescription>
+              Complete la información para registrar la devolución
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Información del Proveedor */}
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <h3 className="font-semibold mb-2">Información del Proveedor</h3>
+              <div className="space-y-1 text-sm">
+                <p>
+                  <span className="font-medium">Nombre:</span>{" "}
+                  {productDetails?.proveedor || "No registrado"}
+                </p>
+                {proveedorInfo ? (
+                  <>
+                    <p>
+                      <span className="font-medium">Teléfono:</span>{" "}
+                      {proveedorInfo.telefono}
+                    </p>
+                    {/* El backend no devuelve correo en ProveedorDetalle ni Proveedor */}
+                    <p>
+                      <span className="font-medium">Correo:</span> No disponible
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground italic">
+                    Detalles de contacto no encontrados.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Información del Lote */}
+            {selectedLote && (
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <h3 className="font-semibold mb-2">Información del Lote</h3>
+                <div className="space-y-1 text-sm">
+                  <p>
+                    <span className="font-medium">Producto:</span>{" "}
+                    {productDetails?.nombre}
+                  </p>
+                  <p>
+                    <span className="font-medium">Lote:</span>{" "}
+                    {selectedLote.codigoLote}
+                  </p>
+                  <p>
+                    <span className="font-medium">Cantidad:</span>{" "}
+                    {selectedLote.cantidad}
+                  </p>
+                  <p>
+                    <span className="font-medium">Fecha de Vencimiento:</span>{" "}
+                    {selectedLote.fechaVencimiento
+                      ? format(
+                        new Date(selectedLote.fechaVencimiento),
+                        "dd/MM/yyyy"
+                      )
+                      : "N/A"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Formulario de Fecha y Hora */}
+            <Form {...solicitudForm}>
+              <form className="space-y-4">
+                <FormField
+                  control={solicitudForm.control}
+                  name="fechaRecepcion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha de Recepción *</FormLabel>
+                      <FormControl>
+                        <Input type="date" className="h-11" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={solicitudForm.control}
+                  name="horaRecepcion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hora de Recepción *</FormLabel>
+                      <FormControl>
+                        <Input type="time" className="h-11" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </form>
+            </Form>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowSolicitudDialog(false)}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmarSolicitud}>Registrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Alert Dialog de Confirmación */}
+      <AlertDialog
+        open={showConfirmDialog}
+        onOpenChange={setShowConfirmDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              ¿Está seguro de registrar esta devolución?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción registrará la devolución del producto y quedará
+              pendiente hasta la fecha de recepción programada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegistrarDevolucion}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
