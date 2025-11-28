@@ -96,7 +96,11 @@ export interface DetalleEntradaDto {
   fechaVencimiento?: string | null; // ISO DateTime string
   observacionDetalle?: string;
 }
-
+// --- NUEVO: Payload para Ajuste ---
+export interface AjusteInventarioPayload {
+    idProducto: number;
+    stockReal: number;
+}
 /**
  * Payload principal para registrar una entrada.
  * (Backend: RegistroEntradaDto)
@@ -238,5 +242,17 @@ export const MovimientoService = {
       method: "DELETE",
     });
   },
+
+  // --- NUEVOS MÉTODOS DE AJUSTE ---
+  registrarAjuste: (payload: AjusteInventarioPayload): Promise<{ message: string }> => {
+    return apiRequest(`/api/v1/movimientos/ajustes`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+    });
+  },
+
+  obtenerHistorialAjustes: (): Promise<MovimientoHistorialDto[]> => {
+      return apiRequest<MovimientoHistorialDto[]>("/api/v1/movimientos/ajustes/historial");
+  }
 
 };

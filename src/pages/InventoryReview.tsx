@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/hooks/use-toast";
-import { Save } from "lucide-react";
+import { toast } from "sonner";
+import { Save, Loader2 } from "lucide-react";
 import {
     Select,
     SelectContent,
@@ -22,75 +22,89 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface Product {
-    id: string;
-    nombre: string;
-    categoria: string;
-    stockRegistrado: number;
-    ubicacion: string;
-}
-
-interface Adjustment {
-    productoId: string;
-    producto: string;
-    stockAnterior: number;
-    stockCorregido: number;
-    fecha: string;
-    hora: string;
-    usuario: string;
-}
+import { ProductService, ProductoInventario, RepisaFiltro } from "@/api/productService";
+import { MovimientoService, MovimientoHistorialDto } from "@/api/movimientoService";
+import { format } from "date-fns";
 
 const InventoryReview = () => {
-    const [products, setProducts] = useState<Product[]>([
-        { id: "1", nombre: "Harina de trigo", categoria: "Harinas", stockRegistrado: 50, ubicacion: "A1" },
-        { id: "2", nombre: "Azúcar refinada", categoria: "Endulzantes", stockRegistrado: 30, ubicacion: "B2" },
-        { id: "3", nombre: "Sal fina", categoria: "Condimentos", stockRegistrado: 25, ubicacion: "C1" },
-        { id: "4", nombre: "Aceite vegetal", categoria: "Aceites", stockRegistrado: 40, ubicacion: "D3" },
-        { id: "5", nombre: "Arroz blanco", categoria: "Granos", stockRegistrado: 60, ubicacion: "E1" },
-        { id: "6", nombre: "Frijoles negros", categoria: "Granos", stockRegistrado: 35, ubicacion: "E2" },
-        { id: "7", nombre: "Pasta corta", categoria: "Pastas", stockRegistrado: 45, ubicacion: "F1" },
-        { id: "8", nombre: "Leche en polvo", categoria: "Lácteos", stockRegistrado: 20, ubicacion: "G2" },
-    ]);
-
-    const [stockReal, setStockReal] = useState<{ [key: string]: string }>({});
-    const [adjustmentHistory, setAdjustmentHistory] = useState<Adjustment[]>([]);
+    const [products, setProducts] = useState<ProductoInventario[]>([]);
+    const [filteredProducts, setFilteredProducts] = useState<ProductoInventario[]>([]);
+    const [stockReal, setStockReal] = useState<{ [key: number]: string }>({});
+    const [adjustmentHistory, setAdjustmentHistory] = useState<MovimientoHistorialDto[]>([]);
+    const [repisas, setRepisas] = useState<RepisaFiltro[]>([]);
     const [selectedShelf, setSelectedShelf] = useState<string>("all");
-    const [pendingAdjustment, setPendingAdjustment] = useState<Product | null>(null);
+    const [pendingAdjustment, setPendingAdjustment] = useState<ProductoInventario | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
-    // Get unique shelves
-    const shelves = Array.from(new Set(products.map(p => p.ubicacion))).sort();
+    // Cargar datos iniciales
+    useEffect(() => {
+        loadProducts();
+        loadRepisas();
+        loadHistory();
+    }, []);
 
-    // Filter products
-    const filteredProducts = selectedShelf === "all"
-        ? products
-        : products.filter(p => p.ubicacion === selectedShelf);
+    // Filtrar productos cuando cambia la repisa o la lista de productos
+    useEffect(() => {
+        if (selectedShelf === "all") {
+            setFilteredProducts(products);
+        } else {
+            // El formato de ubicación en ProductoInventario es "REPISA-F-C" (ej: A1-1-2)
+            // Necesitamos filtrar si la ubicación empieza con el código de la repisa seleccionada
+            setFilteredProducts(products.filter(p => 
+                p.ubicacion && p.ubicacion.startsWith(selectedShelf)
+            ));
+        }
+    }, [selectedShelf, products]);
 
-    const handleStockRealChange = (productId: string, value: string) => {
+    const loadProducts = async () => {
+        setIsLoadingProducts(true);
+        try {
+            const data = await ProductService.getInventario({});
+            setProducts(data);
+        } catch (error) {
+            toast.error("Error al cargar inventario");
+        } finally {
+            setIsLoadingProducts(false);
+        }
+    };
+
+    const loadRepisas = async () => {
+        try {
+            const data = await ProductService.getFiltrosInventario();
+            setRepisas(data.repisas);
+        } catch (error) {
+            console.error("Error cargando repisas");
+        }
+    };
+
+    const loadHistory = async () => {
+        try {
+            const data = await MovimientoService.obtenerHistorialAjustes();
+            setAdjustmentHistory(data);
+        } catch (error) {
+            console.error("Error cargando historial");
+        }
+    };
+
+    const handleStockRealChange = (productId: number, value: string) => {
         setStockReal(prev => ({
             ...prev,
             [productId]: value
         }));
     };
 
-    const initiateAdjustment = (product: Product) => {
-        const newStock = parseInt(stockReal[product.id] || "");
+    const initiateAdjustment = (product: ProductoInventario) => {
+        const val = stockReal[product.idProducto];
+        const newStock = parseInt(val || "");
 
-        if (isNaN(newStock)) {
-            toast({
-                title: "Error",
-                description: "Por favor ingrese un valor numérico válido",
-                variant: "destructive",
-            });
+        if (isNaN(newStock) || newStock < 0) {
+            toast.error("Por favor ingrese un valor numérico válido (positivo o cero)");
             return;
         }
 
-        if (newStock === product.stockRegistrado) {
-            toast({
-                title: "Sin cambios",
-                description: "El stock real es igual al stock registrado",
-            });
+        if (newStock === product.stockDisponible) {
+            toast.info("El stock real es igual al stock registrado. No se requieren cambios.");
             return;
         }
 
@@ -98,45 +112,67 @@ const InventoryReview = () => {
         setIsDialogOpen(true);
     };
 
-    const handleConfirmAdjustment = () => {
+    const handleConfirmAdjustment = async () => {
         if (!pendingAdjustment) return;
 
-        const product = pendingAdjustment;
-        const newStock = parseInt(stockReal[product.id] || "");
+        const productId = pendingAdjustment.idProducto;
+        const newStock = parseInt(stockReal[productId]);
 
-        // Update product stock
-        setProducts(prev => prev.map(p =>
-            p.id === product.id ? { ...p, stockRegistrado: newStock } : p
-        ));
+        try {
+            await MovimientoService.registrarAjuste({
+                idProducto: productId,
+                stockReal: newStock
+            });
 
-        // Add to adjustment history
-        const now = new Date();
-        const adjustment: Adjustment = {
-            productoId: product.id,
-            producto: product.nombre,
-            stockAnterior: product.stockRegistrado,
-            stockCorregido: newStock,
-            fecha: now.toLocaleDateString('es-MX'),
-            hora: now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
-            usuario: "Administrador"
+            toast.success(`Stock de "${pendingAdjustment.nombre}" actualizado a ${newStock}`);
+            
+            // Limpiar estado y recargar
+            setPendingAdjustment(null);
+            setIsDialogOpen(false);
+            setStockReal(prev => {
+                const next = { ...prev };
+                delete next[productId];
+                return next;
+            });
+            
+            // Recargar datos para ver cambios reflejados
+            loadProducts();
+            loadHistory();
+
+        } catch (error: any) {
+            const msg = error.message || "Error al realizar el ajuste";
+            toast.error(msg);
+        }
+    };
+
+    // Función auxiliar para extraer la diferencia de la observación (hack temporal dado que no está en DTO limpio)
+    // Lo ideal es que el backend mande "stockAnterior" y "stockNuevo" en el DTO.
+    // Como solución rápida, parseamos el motivo o la observación, o calculamos si tenemos datos.
+    // En esta implementación, el backend guarda en DetalleMovimiento la cantidad absoluta de diferencia.
+    // Para mostrar la tabla como pide el usuario (Anterior, Nuevo, Diferencia), 
+    // parsearemos la cadena de "motivo" del detalle que pusimos en el backend: "Stock Anterior: X -> Nuevo: Y"
+    
+    const parseAdjustmentDetails = (historyItem: MovimientoHistorialDto) => {
+        // El item de historial tiene una lista de detalles. En un ajuste simple, suele ser 1 detalle.
+        if (!historyItem.detalles || historyItem.detalles.length === 0) return null;
+        const detalle = historyItem.detalles[0];
+        
+        // Aquí necesitamos que el backend nos mande esos datos o los inferimos.
+        // Como el backend actual (MovimientoService) no manda la "observacionDetalle" en el DTO de historial (DetalleHistorialDto),
+        // Solo tenemos cantidad (la diferencia absoluta).
+        // Para cumplir con el requerimiento visual exacto, necesitaríamos modificar el DTO del backend 
+        // para incluir 'observacionDetalle' o 'stockAnterior'.
+        // POR AHORA: Mostraremos la diferencia y la fecha.
+        
+        // Nota: Si el backend se actualizó correctamente con mi propuesta anterior, 
+        // falta agregar 'observacionDetalle' a DetalleHistorialDto. 
+        // Asumiremos que se hizo o mostraremos datos básicos.
+        
+        return {
+            producto: detalle.nombreProducto,
+            diferencia: detalle.cantidad, // Es absoluto
+            tipo: historyItem.motivo.includes("Sobrante") ? "positive" : "negative"
         };
-
-        setAdjustmentHistory(prev => [adjustment, ...prev]);
-
-        // Clear the input for this product
-        setStockReal(prev => ({
-            ...prev,
-            [product.id]: ""
-        }));
-
-        // Show success toast
-        toast({
-            title: "Ajuste realizado",
-            description: `Stock de "${product.nombre}" actualizado de ${product.stockRegistrado} a ${newStock} unidades`,
-        });
-
-        setPendingAdjustment(null);
-        setIsDialogOpen(false);
     };
 
     return (
@@ -155,18 +191,18 @@ const InventoryReview = () => {
                             </p>
                         </div>
 
-                        {/* Filters */}
+                        {/* Filtros */}
                         <div className="lg:ml-0 ml-14 mb-6 flex justify-end">
-                            <div className="w-[200px]">
+                            <div className="w-[250px]">
                                 <Select value={selectedShelf} onValueChange={setSelectedShelf}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Filtrar por repisa" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">Todas las repisas</SelectItem>
-                                        {shelves.map(shelf => (
-                                            <SelectItem key={shelf} value={shelf}>
-                                                Repisa {shelf}
+                                        {repisas.map(r => (
+                                            <SelectItem key={r.idRepisa} value={r.codigo}>
+                                                Repisa {r.codigo}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -174,7 +210,7 @@ const InventoryReview = () => {
                             </div>
                         </div>
 
-                        {/* Products Table */}
+                        {/* Tabla de Productos */}
                         <div className="lg:ml-0 ml-14 bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl lg:rounded-2xl shadow-lg p-6 mb-6">
                             <h2 className="text-lg font-semibold mb-4 text-foreground">Productos en inventario</h2>
 
@@ -185,80 +221,105 @@ const InventoryReview = () => {
                                             <TableHead>Producto</TableHead>
                                             <TableHead>Categoría</TableHead>
                                             <TableHead>Ubicación</TableHead>
-                                            <TableHead className="text-right">Stock Registrado</TableHead>
+                                            <TableHead className="text-right">Stock Sistema</TableHead>
                                             <TableHead className="text-center">Stock Real</TableHead>
                                             <TableHead className="text-center">Acción</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filteredProducts.map((product) => (
-                                            <TableRow key={product.id}>
-                                                <TableCell className="font-medium">{product.nombre}</TableCell>
-                                                <TableCell>{product.categoria}</TableCell>
-                                                <TableCell>{product.ubicacion}</TableCell>
-                                                <TableCell className="text-right font-semibold">
-                                                    {product.stockRegistrado}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <Input
-                                                        type="number"
-                                                        min="0"
-                                                        placeholder="Ingrese stock"
-                                                        value={stockReal[product.id] || ""}
-                                                        onChange={(e) => handleStockRealChange(product.id, e.target.value)}
-                                                        className="w-32 text-center mx-auto"
-                                                    />
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => initiateAdjustment(product)}
-                                                        disabled={!stockReal[product.id]}
-                                                        className="gap-2"
-                                                    >
-                                                        <Save className="w-4 h-4" />
-                                                        Ajustar
-                                                    </Button>
+                                        {isLoadingProducts ? (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="text-center py-8">
+                                                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
+                                        ) : filteredProducts.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                                                    No se encontraron productos.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            filteredProducts.map((product) => (
+                                                <TableRow key={product.idProducto}>
+                                                    <TableCell className="font-medium">{product.nombre}</TableCell>
+                                                    <TableCell>{product.categoria}</TableCell>
+                                                    <TableCell>
+                                                        <span className="inline-flex items-center px-2 py-1 rounded-md bg-secondary text-xs font-medium">
+                                                            {product.ubicacion || "N/A"}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-semibold">
+                                                        {product.stockDisponible}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            placeholder="0"
+                                                            value={stockReal[product.idProducto] || ""}
+                                                            onChange={(e) => handleStockRealChange(product.idProducto, e.target.value)}
+                                                            className="w-24 text-center mx-auto h-8"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {stockReal[product.idProducto] !== undefined && stockReal[product.idProducto] !== "" && (
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => initiateAdjustment(product)}
+                                                                className="h-8 gap-2"
+                                                            >
+                                                                <Save className="w-3 h-3" />
+                                                                Ajustar
+                                                            </Button>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
                                     </TableBody>
                                 </Table>
                             </div>
                         </div>
 
-                        {/* Adjustment History */}
+                        {/* Historial de Ajustes */}
                         {adjustmentHistory.length > 0 && (
                             <div className="lg:ml-0 ml-14 bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl lg:rounded-2xl shadow-lg p-6">
-                                <h2 className="text-lg font-semibold mb-4 text-foreground">Historial de ajustes</h2>
+                                <h2 className="text-lg font-semibold mb-4 text-foreground">Historial de últimos ajustes</h2>
 
                                 <div className="overflow-x-auto">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Producto</TableHead>
-                                                <TableHead className="text-right">Stock Anterior</TableHead>
-                                                <TableHead className="text-right">Stock Corregido</TableHead>
                                                 <TableHead className="text-right">Diferencia</TableHead>
+                                                <TableHead>Motivo / Detalle</TableHead>
                                                 <TableHead>Fecha</TableHead>
-                                                <TableHead>Hora</TableHead>
                                                 <TableHead>Usuario</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {adjustmentHistory.map((adjustment, index) => {
-                                                const difference = adjustment.stockCorregido - adjustment.stockAnterior;
+                                            {adjustmentHistory.map((hist, index) => {
+                                                const info = parseAdjustmentDetails(hist);
+                                                if (!info) return null;
+                                                
+                                                const isPositive = info.tipo === "positive";
+                                                
                                                 return (
                                                     <TableRow key={index}>
-                                                        <TableCell className="font-medium">{adjustment.producto}</TableCell>
-                                                        <TableCell className="text-right">{adjustment.stockAnterior}</TableCell>
-                                                        <TableCell className="text-right font-semibold">{adjustment.stockCorregido}</TableCell>
-                                                        <TableCell className={`text-right font-semibold ${difference > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {difference > 0 ? '+' : ''}{difference}
+                                                        <TableCell className="font-medium">{info.producto}</TableCell>
+                                                        <TableCell className={`text-right font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {isPositive ? '+' : '-'}{info.diferencia}
                                                         </TableCell>
-                                                        <TableCell>{adjustment.fecha}</TableCell>
-                                                        <TableCell>{adjustment.hora}</TableCell>
-                                                        <TableCell>{adjustment.usuario}</TableCell>
+                                                        <TableCell className="text-sm text-muted-foreground">
+                                                            {hist.motivo}
+                                                        </TableCell>
+                                                        <TableCell className="text-sm">
+                                                            {new Date(hist.fechaMovimiento).toLocaleString()}
+                                                        </TableCell>
+                                                        <TableCell className="text-sm">
+                                                            {hist.nombreUsuario}
+                                                        </TableCell>
                                                     </TableRow>
                                                 );
                                             })}
@@ -280,9 +341,11 @@ const InventoryReview = () => {
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Confirmar ajuste de inventario?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Se actualizará el stock de <strong>{pendingAdjustment?.nombre}</strong> de {pendingAdjustment?.stockRegistrado} a {pendingAdjustment && stockReal[pendingAdjustment.id]} unidades.
-                            <br />
-                            Esta acción quedará registrada en el historial.
+                            Se actualizará el stock de <strong>{pendingAdjustment?.nombre}</strong> de {" "}
+                            <span className="font-bold text-foreground">{pendingAdjustment?.stockDisponible}</span> a {" "}
+                            <span className="font-bold text-foreground">{pendingAdjustment && stockReal[pendingAdjustment.idProducto]}</span> unidades.
+                            <br /><br />
+                            Esta acción quedará registrada en el historial y afectará los lotes correspondientes.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
