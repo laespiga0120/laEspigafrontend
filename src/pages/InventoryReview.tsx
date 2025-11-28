@@ -12,6 +12,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Product {
     id: string;
@@ -46,6 +56,8 @@ const InventoryReview = () => {
     const [stockReal, setStockReal] = useState<{ [key: string]: string }>({});
     const [adjustmentHistory, setAdjustmentHistory] = useState<Adjustment[]>([]);
     const [selectedShelf, setSelectedShelf] = useState<string>("all");
+    const [pendingAdjustment, setPendingAdjustment] = useState<Product | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     // Get unique shelves
     const shelves = Array.from(new Set(products.map(p => p.ubicacion))).sort();
@@ -62,7 +74,7 @@ const InventoryReview = () => {
         }));
     };
 
-    const handleSaveAdjustment = (product: Product) => {
+    const initiateAdjustment = (product: Product) => {
         const newStock = parseInt(stockReal[product.id] || "");
 
         if (isNaN(newStock)) {
@@ -81,6 +93,16 @@ const InventoryReview = () => {
             });
             return;
         }
+
+        setPendingAdjustment(product);
+        setIsDialogOpen(true);
+    };
+
+    const handleConfirmAdjustment = () => {
+        if (!pendingAdjustment) return;
+
+        const product = pendingAdjustment;
+        const newStock = parseInt(stockReal[product.id] || "");
 
         // Update product stock
         setProducts(prev => prev.map(p =>
@@ -112,6 +134,9 @@ const InventoryReview = () => {
             title: "Ajuste realizado",
             description: `Stock de "${product.nombre}" actualizado de ${product.stockRegistrado} a ${newStock} unidades`,
         });
+
+        setPendingAdjustment(null);
+        setIsDialogOpen(false);
     };
 
     return (
@@ -161,7 +186,7 @@ const InventoryReview = () => {
                                             <TableHead>Categoría</TableHead>
                                             <TableHead>Ubicación</TableHead>
                                             <TableHead className="text-right">Stock Registrado</TableHead>
-                                            <TableHead className="text-right">Stock Real</TableHead>
+                                            <TableHead className="text-center">Stock Real</TableHead>
                                             <TableHead className="text-center">Acción</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -174,20 +199,20 @@ const InventoryReview = () => {
                                                 <TableCell className="text-right font-semibold">
                                                     {product.stockRegistrado}
                                                 </TableCell>
-                                                <TableCell className="text-right">
+                                                <TableCell className="text-center">
                                                     <Input
                                                         type="number"
                                                         min="0"
                                                         placeholder="Ingrese stock"
                                                         value={stockReal[product.id] || ""}
                                                         onChange={(e) => handleStockRealChange(product.id, e.target.value)}
-                                                        className="w-32 text-right"
+                                                        className="w-32 text-center mx-auto"
                                                     />
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     <Button
                                                         size="sm"
-                                                        onClick={() => handleSaveAdjustment(product)}
+                                                        onClick={() => initiateAdjustment(product)}
                                                         disabled={!stockReal[product.id]}
                                                         className="gap-2"
                                                     >
@@ -249,6 +274,23 @@ const InventoryReview = () => {
             <footer className="container mx-auto px-4 py-4 sm:py-6 text-center text-xs sm:text-sm text-muted-foreground">
                 <p>La Espiga © 2025 - Sistema de gestión para abarrotes y postres</p>
             </footer>
+
+            <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmar ajuste de inventario?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Se actualizará el stock de <strong>{pendingAdjustment?.nombre}</strong> de {pendingAdjustment?.stockRegistrado} a {pendingAdjustment && stockReal[pendingAdjustment.id]} unidades.
+                            <br />
+                            Esta acción quedará registrada en el historial.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setPendingAdjustment(null)}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmAdjustment}>Confirmar</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };
