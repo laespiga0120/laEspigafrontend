@@ -59,12 +59,15 @@ export interface ProductoPorProveedorDto {
  * (Backend: DetalleHistorialDto)
  */
 export interface DetalleHistorialDto {
-  idProducto: number; // <-- AÑADIDO
+  idProducto: number;
   nombreProducto: string;
   cantidad: number;
   precioVenta: number;
   precioCompra: number;
   subtotal: number;
+  // --- NUEVOS CAMPOS ---
+  stockAnterior?: number; // Puede ser opcional si movimientos viejos no lo tienen
+  stockNuevo?: number;
 }
 
 /**
@@ -253,6 +256,6 @@ export const MovimientoService = {
 
   obtenerHistorialAjustes: (): Promise<MovimientoHistorialDto[]> => {
       return apiRequest<MovimientoHistorialDto[]>("/api/v1/movimientos/ajustes/historial");
-  }
+  },
 
 };

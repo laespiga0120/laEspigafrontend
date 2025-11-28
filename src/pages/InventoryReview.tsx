@@ -37,20 +37,16 @@ const InventoryReview = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
-    // Cargar datos iniciales
     useEffect(() => {
         loadProducts();
         loadRepisas();
         loadHistory();
     }, []);
 
-    // Filtrar productos cuando cambia la repisa o la lista de productos
     useEffect(() => {
         if (selectedShelf === "all") {
             setFilteredProducts(products);
         } else {
-            // El formato de ubicación en ProductoInventario es "REPISA-F-C" (ej: A1-1-2)
-            // Necesitamos filtrar si la ubicación empieza con el código de la repisa seleccionada
             setFilteredProducts(products.filter(p => 
                 p.ubicacion && p.ubicacion.startsWith(selectedShelf)
             ));
@@ -126,7 +122,6 @@ const InventoryReview = () => {
 
             toast.success(`Stock de "${pendingAdjustment.nombre}" actualizado a ${newStock}`);
             
-            // Limpiar estado y recargar
             setPendingAdjustment(null);
             setIsDialogOpen(false);
             setStockReal(prev => {
@@ -135,7 +130,6 @@ const InventoryReview = () => {
                 return next;
             });
             
-            // Recargar datos para ver cambios reflejados
             loadProducts();
             loadHistory();
 
@@ -143,36 +137,6 @@ const InventoryReview = () => {
             const msg = error.message || "Error al realizar el ajuste";
             toast.error(msg);
         }
-    };
-
-    // Función auxiliar para extraer la diferencia de la observación (hack temporal dado que no está en DTO limpio)
-    // Lo ideal es que el backend mande "stockAnterior" y "stockNuevo" en el DTO.
-    // Como solución rápida, parseamos el motivo o la observación, o calculamos si tenemos datos.
-    // En esta implementación, el backend guarda en DetalleMovimiento la cantidad absoluta de diferencia.
-    // Para mostrar la tabla como pide el usuario (Anterior, Nuevo, Diferencia), 
-    // parsearemos la cadena de "motivo" del detalle que pusimos en el backend: "Stock Anterior: X -> Nuevo: Y"
-    
-    const parseAdjustmentDetails = (historyItem: MovimientoHistorialDto) => {
-        // El item de historial tiene una lista de detalles. En un ajuste simple, suele ser 1 detalle.
-        if (!historyItem.detalles || historyItem.detalles.length === 0) return null;
-        const detalle = historyItem.detalles[0];
-        
-        // Aquí necesitamos que el backend nos mande esos datos o los inferimos.
-        // Como el backend actual (MovimientoService) no manda la "observacionDetalle" en el DTO de historial (DetalleHistorialDto),
-        // Solo tenemos cantidad (la diferencia absoluta).
-        // Para cumplir con el requerimiento visual exacto, necesitaríamos modificar el DTO del backend 
-        // para incluir 'observacionDetalle' o 'stockAnterior'.
-        // POR AHORA: Mostraremos la diferencia y la fecha.
-        
-        // Nota: Si el backend se actualizó correctamente con mi propuesta anterior, 
-        // falta agregar 'observacionDetalle' a DetalleHistorialDto. 
-        // Asumiremos que se hizo o mostraremos datos básicos.
-        
-        return {
-            producto: detalle.nombreProducto,
-            diferencia: detalle.cantidad, // Es absoluto
-            tipo: historyItem.motivo.includes("Sobrante") ? "positive" : "negative"
-        };
     };
 
     return (
@@ -191,7 +155,6 @@ const InventoryReview = () => {
                             </p>
                         </div>
 
-                        {/* Filtros */}
                         <div className="lg:ml-0 ml-14 mb-6 flex justify-end">
                             <div className="w-[250px]">
                                 <Select value={selectedShelf} onValueChange={setSelectedShelf}>
@@ -210,7 +173,6 @@ const InventoryReview = () => {
                             </div>
                         </div>
 
-                        {/* Tabla de Productos */}
                         <div className="lg:ml-0 ml-14 bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl lg:rounded-2xl shadow-lg p-6 mb-6">
                             <h2 className="text-lg font-semibold mb-4 text-foreground">Productos en inventario</h2>
 
@@ -263,16 +225,15 @@ const InventoryReview = () => {
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                        {stockReal[product.idProducto] !== undefined && stockReal[product.idProducto] !== "" && (
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => initiateAdjustment(product)}
-                                                                className="h-8 gap-2"
-                                                            >
-                                                                <Save className="w-3 h-3" />
-                                                                Ajustar
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => initiateAdjustment(product)}
+                                                            disabled={!stockReal[product.idProducto]}
+                                                            className="h-8 gap-2"
+                                                        >
+                                                            <Save className="w-3 h-3" />
+                                                            Ajustar
+                                                        </Button>
                                                     </TableCell>
                                                 </TableRow>
                                             ))
@@ -282,7 +243,6 @@ const InventoryReview = () => {
                             </div>
                         </div>
 
-                        {/* Historial de Ajustes */}
                         {adjustmentHistory.length > 0 && (
                             <div className="lg:ml-0 ml-14 bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl lg:rounded-2xl shadow-lg p-6">
                                 <h2 className="text-lg font-semibold mb-4 text-foreground">Historial de últimos ajustes</h2>
@@ -292,6 +252,8 @@ const InventoryReview = () => {
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Producto</TableHead>
+                                                <TableHead className="text-right">Stock Anterior</TableHead>
+                                                <TableHead className="text-right">Stock Corregido</TableHead>
                                                 <TableHead className="text-right">Diferencia</TableHead>
                                                 <TableHead>Motivo / Detalle</TableHead>
                                                 <TableHead>Fecha</TableHead>
@@ -300,16 +262,23 @@ const InventoryReview = () => {
                                         </TableHeader>
                                         <TableBody>
                                             {adjustmentHistory.map((hist, index) => {
-                                                const info = parseAdjustmentDetails(hist);
-                                                if (!info) return null;
+                                                // Ahora obtenemos los datos directamente del objeto, sin parsear strings
+                                                const detalle = hist.detalles[0];
+                                                const stockAnterior = detalle?.stockAnterior ?? "N/A";
+                                                const stockNuevo = detalle?.stockNuevo ?? "N/A";
+                                                const diferencia = detalle?.cantidad ?? 0;
+                                                const isPositive = hist.motivo.includes("Sobrante"); // O usar lógica de stockNuevo > stockAnterior
                                                 
-                                                const isPositive = info.tipo === "positive";
-                                                
+                                                // Si no hay detalle, saltamos (seguridad)
+                                                if(!detalle) return null;
+
                                                 return (
                                                     <TableRow key={index}>
-                                                        <TableCell className="font-medium">{info.producto}</TableCell>
+                                                        <TableCell className="font-medium">{detalle.nombreProducto}</TableCell>
+                                                        <TableCell className="text-right text-muted-foreground">{stockAnterior}</TableCell>
+                                                        <TableCell className="text-right font-bold">{stockNuevo}</TableCell>
                                                         <TableCell className={`text-right font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                                                            {isPositive ? '+' : '-'}{info.diferencia}
+                                                            {isPositive ? '+' : '-'}{diferencia}
                                                         </TableCell>
                                                         <TableCell className="text-sm text-muted-foreground">
                                                             {hist.motivo}
