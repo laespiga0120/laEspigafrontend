@@ -96,8 +96,31 @@ const formSchema = z.object({
 
 // --- ESQUEMAS PARA DEVOLUCIONES ---
 const solicitudFormSchema = z.object({
-  fechaRecepcion: z.string().min(1, { message: "Debe seleccionar una fecha" }),
-  horaRecepcion: z.string().min(1, { message: "Debe seleccionar una hora" }),
+  fechaRecepcion: z
+    .string()
+    .min(1, { message: "Debe seleccionar una fecha" })
+    .refine(
+      (date) => {
+        const selectedDate = new Date(date + "T00:00:00");
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return selectedDate > today;
+      },
+      { message: "La fecha debe ser posterior al día actual" }
+    ),
+  horaRecepcion: z
+    .string()
+    .min(1, { message: "Debe seleccionar una hora" })
+    .refine(
+      (time) => {
+        const [hours, minutes] = time.split(":").map(Number);
+        const totalMinutes = hours * 60 + minutes;
+        const minMinutes = 6 * 60; // 06:00
+        const maxMinutes = 22 * 60; // 22:00
+        return totalMinutes >= minMinutes && totalMinutes <= maxMinutes;
+      },
+      { message: "La hora debe estar en el horario de recepción, entre 6:00 am y 10:00 pm" }
+    ),
 });
 
 // --- INTERFACES LOCALES ---
@@ -1030,6 +1053,9 @@ const RegisterSalesOutput = () => {
                                   // o podemos restringirlo solo a vencidos si se desea.
                                   // Por ahora lo dejamos abierto pero marcamos visualmente.
                                   onClick={() => handleSolicitarDevolucion(lote)}
+                                  disabled={
+                                    !isVencido || !productDetails.perecible
+                                  }
                                 >
                                   Solicitar Devolución
                                 </Button>
@@ -1073,22 +1099,10 @@ const RegisterSalesOutput = () => {
                   <span className="font-medium">Nombre:</span>{" "}
                   {productDetails?.proveedor || "No registrado"}
                 </p>
-                {proveedorInfo ? (
-                  <>
-                    <p>
-                      <span className="font-medium">Teléfono:</span>{" "}
-                      {proveedorInfo.telefono}
-                    </p>
-                    {/* El backend no devuelve correo en ProveedorDetalle ni Proveedor */}
-                    <p>
-                      <span className="font-medium">Correo:</span> No disponible
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground italic">
-                    Detalles de contacto no encontrados.
-                  </p>
-                )}
+                <p>
+                  <span className="font-medium">Teléfono:</span>{" "}
+                  {proveedorInfo?.telefono || "No disponible"}
+                </p>
               </div>
             </div>
 

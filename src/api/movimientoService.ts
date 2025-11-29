@@ -9,6 +9,7 @@ export interface ProductoBusqueda {
   descripcionProducto: string;
   stock: number;
   precioVenta: number;
+  perecible?: boolean;
 }
 
 // Corresponde a DetalleSalidaDto
