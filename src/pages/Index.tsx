@@ -55,6 +55,7 @@ import {
   ProductoUpdatePayload,
   UbicacionDto,
 } from "../api/productService";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "../components/ui/skeleton";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
@@ -748,6 +749,9 @@ const Index = () => {
     ));
   };
 
+  // Productos con stock bajo el mínimo
+  const lowStockProducts = mockProducts.filter((product) => product.stock < product.stockMinimo);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted flex flex-col">
       <div className="flex flex-1">
@@ -762,6 +766,49 @@ const Index = () => {
                 Busca y filtra productos por nombre, categoría o ubicación
               </p>
             </div>
+
+            {/* Alertas de Stock Bajo */}
+            {lowStockProducts.length > 0 && (
+              <div className="mb-6 lg:ml-0 ml-14">
+                <Alert variant="destructive" className="border-2 shadow-xl">
+                  <AlertTriangle className="h-5 w-5" />
+                  <AlertTitle className="text-lg font-bold">
+                    ¡Alerta de Stock Bajo!
+                  </AlertTitle>
+                  <AlertDescription className="mt-2">
+                    <p className="mb-3 font-medium">
+                      {lowStockProducts.length} {lowStockProducts.length === 1 ? 'producto está' : 'productos están'} por debajo del stock mínimo:
+                    </p>
+                    <div className="space-y-2">
+                      {lowStockProducts.map((product) => (
+                        <div key={product.id} className="flex items-center justify-between bg-background/50 rounded-lg p-3 border border-destructive/30">
+                          <div className="flex-1">
+                            <span className="font-semibold">{product.nombre}</span>
+                            <span className="text-sm ml-2">({product.categoria})</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Stock actual:</span>{' '}
+                              <span className="font-bold">{product.stock}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Stock mínimo:</span>{' '}
+                              <span className="font-bold">{product.stockMinimo}</span>
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Ubicación:</span>{' '}
+                              <span className="font-mono font-bold">
+                                {product.ubicacion.repisa}-{product.ubicacion.fila}-{product.ubicacion.nivel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
 
             <div className="mb-6 lg:ml-0 ml-14">
               <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 sm:p-6 shadow-lg">
