@@ -76,10 +76,10 @@ import {
   MovimientoService,
   ProductoBusqueda,
   RegistroSalidaPayload,
-  MovimientoHistorialSalida,
 } from "@/api/movimientoService";
-import { ProductService, ProductoDetalle, LoteDetalle } from "@/api/productService";
-import { ProveedorService, Proveedor } from "@/api/proveedorService";
+import { ProductService, LoteDetalle } from "@/api/productService";
+import { ProveedorService } from "@/api/proveedorService";
+import { DevolucionService, DevolucionCreatePayload } from "@/api/devolucionService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 
@@ -132,17 +132,7 @@ interface ProductoAgregado {
   precioVenta: number;
 }
 
-interface DevolucionPendiente {
-  id: string;
-  loteCodigo: string;
-  productoNombre: string;
-  cantidad: number;
-  proveedorNombre: string;
-  fechaRecepcion: Date;
-  registradoPor: string;
-}
-
-// --- COMPONENTE DE BÚSQUEDA EXTRAÍDO (EXISTENTE) ---
+// --- COMPONENTE DE BÚSQUEDA EXTRAÍDO ---
 interface ProductSearchProps {
   field: any;
   query: string;
@@ -290,9 +280,6 @@ const RegisterSalesOutput = () => {
   const [selectedLote, setSelectedLote] = useState<LoteDetalle | null>(null);
   const [showSolicitudDialog, setShowSolicitudDialog] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [devolucionesPendientes, setDevolucionesPendientes] = useState<
-    DevolucionPendiente[]
-  >([]);
   const [searchDevolucionQuery, setSearchDevolucionQuery] = useState("");
 
   const queryClient = useQueryClient();
@@ -381,10 +368,47 @@ const RegisterSalesOutput = () => {
   });
 
   // Obtener lista de proveedores (para mostrar info en solicitud)
-  const { data: proveedores } = useQuery({
+  const { data: proveedores, isLoading: isLoadingProveedores } = useQuery({
     queryKey: ["proveedores"],
-    queryFn: ProveedorService.listProveedores,
+    queryFn: ProveedorService.listWithCount,
     enabled: showSolicitudDialog,
+  });
+
+  // Obtener devoluciones pendientes
+  const { 
+    data: devolucionesPendientes,
+    isLoading: isLoadingDevoluciones,
+    error: errorDevoluciones
+  } = useQuery({
+    queryKey: ["devolucionesPendientes"],
+    queryFn: DevolucionService.listarPendientes,
+  });
+
+  const registrarDevolucionMutation = useMutation({
+    mutationFn: DevolucionService.create,
+    onSuccess: () => {
+      toast.success("Devolución registrada correctamente");
+      queryClient.invalidateQueries({ queryKey: ["devolucionesPendientes"] });
+      queryClient.invalidateQueries({ queryKey: ["productoDetalle"] });
+      setShowConfirmDialog(false);
+      setShowSolicitudDialog(false);
+      setShowDevolucionDialog(false);
+      setSelectedProductDevolucionId(null);
+      setSelectedLote(null);
+      solicitudForm.reset();
+    },
+    onError: (error: Error) => {
+        let errorMessage = "Error desconocido";
+        try {
+            const parsed = JSON.parse(error.message);
+            errorMessage = parsed.error || parsed.message || error.message;
+        } catch(e) {
+            errorMessage = error.message;
+        }
+      toast.error("Error al registrar la devolución", {
+        description: errorMessage,
+      });
+    },
   });
 
   // --- LÓGICA DEL FORMULARIO PRINCIPAL ---
@@ -486,7 +510,6 @@ const RegisterSalesOutput = () => {
   };
 
   const handleConfirmarSolicitud = () => {
-    // Validar formulario
     solicitudForm.trigger().then((isValid) => {
       if (isValid) {
         setShowSolicitudDialog(false);
@@ -499,43 +522,29 @@ const RegisterSalesOutput = () => {
     const values = solicitudForm.getValues();
     if (!productDetails || !selectedLote) return;
 
-    // Buscar proveedor en la lista cargada
-    // Nota: productDetails tiene el nombre del proveedor, pero no el ID directo a veces,
-    // o el backend devuelve el nombre. En ProductDetalle tenemos 'proveedor' como string.
-    // Intentaremos buscar por nombre si no tenemos ID, o usar el string.
-    // Para este caso, usaremos el string que viene en productDetails.
-    const proveedorNombre = productDetails.proveedor || "Desconocido";
+    // VALIDACIÓN IMPORTANTE:
+    // Aquí verificamos si el lote tiene ID. Si el backend no lo envía, esto falla.
+    if (!selectedLote.idLote) {
+        toast.error("Error técnico: El lote seleccionado no tiene ID. Asegúrese de haber actualizado el Backend.");
+        return;
+    }
 
-    const fechaRecepcion = new Date(
-      `${values.fechaRecepcion}T${values.horaRecepcion}`
-    );
-
-    const nuevaDevolucion: DevolucionPendiente = {
-      id: Date.now().toString(),
-      loteCodigo: selectedLote.codigoLote,
-      productoNombre: productDetails.nombre,
+    const payload: DevolucionCreatePayload = {
+      idProducto: productDetails.idProducto,
+      idLote: selectedLote.idLote,
       cantidad: selectedLote.cantidad,
-      proveedorNombre: proveedorNombre,
-      fechaRecepcion: fechaRecepcion,
-      registradoPor: "Usuario Actual", // Podríamos sacar esto del contexto de auth si existiera
+      fechaRecepcion: values.fechaRecepcion,
+      horaRecepcion: values.horaRecepcion + ":00",
     };
 
-    setDevolucionesPendientes((prev) => [nuevaDevolucion, ...prev]);
-    toast.success("Devolución registrada correctamente (Local)");
-
-    setShowConfirmDialog(false);
-    setShowSolicitudDialog(false);
-    setShowDevolucionDialog(false);
-    setSelectedProductDevolucionId(null);
-    setSelectedLote(null);
-    solicitudForm.reset();
+    registrarDevolucionMutation.mutate(payload);
   };
 
-  // Encontrar info del proveedor para mostrar en el dialog
-  // Como ProductDetalle solo da el nombre, buscamos en la lista de proveedores si coincide el nombre
-  // para obtener telefono, etc.
+  // Encontrar info del proveedor
   const proveedorInfo = proveedores?.find(
-    (p) => p.nombreProveedor === productDetails?.proveedor
+    (p) =>
+      p.nombreProveedor.trim().toLowerCase() ===
+      productDetails?.proveedor?.trim().toLowerCase()
   );
 
   return (
@@ -852,49 +861,71 @@ const RegisterSalesOutput = () => {
             </div>
 
             {/* Lista de Devoluciones Pendientes */}
-            {devolucionesPendientes.length > 0 && (
-              <div className="mt-6 lg:ml-0 ml-14 bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl shadow-lg p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-primary" />
-                  Devoluciones Pendientes por Recibir
-                </h2>
+            <div className="mt-6 lg:ml-0 ml-14 bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl shadow-lg p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                Devoluciones Pendientes por Recibir
+              </h2>
+
+              {isLoadingDevoluciones && (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
+
+              {errorDevoluciones && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>
+                    No se pudieron cargar las devoluciones pendientes.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {!isLoadingDevoluciones && !errorDevoluciones && (!devolucionesPendientes || devolucionesPendientes.length === 0) && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hay devoluciones pendientes.
+                </div>
+              )}
+
+              {!isLoadingDevoluciones && devolucionesPendientes && devolucionesPendientes.length > 0 && (
                 <div className="space-y-3">
                   {devolucionesPendientes.map((devolucion) => (
                     <div
-                      key={devolucion.id}
+                      key={devolucion.idDevolucion}
                       className="p-4 bg-background/50 border border-border rounded-lg"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <h4 className="font-semibold">
-                            {devolucion.productoNombre}
+                            {devolucion.nombreProducto}
                           </h4>
                           <p className="text-sm text-muted-foreground">
-                            Lote: {devolucion.loteCodigo}
+                            Lote: {devolucion.codigoLote}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Proveedor: {devolucion.proveedorNombre}
+                            Proveedor: {devolucion.nombreProveedor || "N/A"}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Cantidad: {devolucion.cantidad}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Fecha de recepción:{" "}
-                            {format(devolucion.fechaRecepcion, "dd/MM/yyyy HH:mm")}
+                            Fecha de recepción: {devolucion.fechaRecepcion}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Registrado por: {devolucion.registradoPor}
+                            Estado: {devolucion.estado}
                           </p>
                         </div>
-                        <span className="px-3 py-1 bg-primary/10 text-primary text-xs rounded-full">
-                          Pendiente
+                        <span className="px-3 py-1 bg-yellow-500/10 text-yellow-600 text-xs rounded-full font-medium border border-yellow-500/20">
+                          {devolucion.estado}
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </main>
       </div>
@@ -1025,8 +1056,18 @@ const RegisterSalesOutput = () => {
                           const fechaVenc = lote.fechaVencimiento
                             ? new Date(lote.fechaVencimiento)
                             : null;
+                          const hoy = new Date();
+                          hoy.setHours(0, 0, 0, 0);
                           const isVencido =
-                            fechaVenc && fechaVenc < new Date();
+                            fechaVenc && fechaVenc < hoy;
+                          
+                          // El botón se habilita solo si:
+                          // 1. El producto es perecible
+                          // 2. El lote tiene fecha de vencimiento
+                          // 3. La fecha de vencimiento es anterior a hoy (está vencido)
+                          const canSolicitarDevolucion = 
+                            productDetails.perecible && fechaVenc && isVencido;
+                          
                           return (
                             <TableRow key={lote.codigoLote}>
                               <TableCell className="font-medium">
@@ -1049,13 +1090,9 @@ const RegisterSalesOutput = () => {
                               <TableCell className="text-right">
                                 <Button
                                   size="sm"
-                                  // Habilitamos devolución incluso si no está vencido,
-                                  // o podemos restringirlo solo a vencidos si se desea.
-                                  // Por ahora lo dejamos abierto pero marcamos visualmente.
                                   onClick={() => handleSolicitarDevolucion(lote)}
-                                  disabled={
-                                    !isVencido || !productDetails.perecible
-                                  }
+                                  disabled={!canSolicitarDevolucion}
+                                  variant={isVencido ? "destructive" : "default"}
                                 >
                                   Solicitar Devolución
                                 </Button>
@@ -1101,7 +1138,13 @@ const RegisterSalesOutput = () => {
                 </p>
                 <p>
                   <span className="font-medium">Teléfono:</span>{" "}
-                  {proveedorInfo?.telefono || "No disponible"}
+                  {isLoadingProveedores ? (
+                    <span className="text-muted-foreground text-xs">
+                      Cargando...
+                    </span>
+                  ) : (
+                    proveedorInfo?.telefono || "No disponible"
+                  )}
                 </p>
               </div>
             </div>

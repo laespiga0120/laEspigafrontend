@@ -66,7 +66,13 @@ export async function apiRequest<T>(
 
       // Si es JSON, parsearlo
       if (contentType && contentType.includes("application/json")) {
-        return await response.json();
+        const text = await response.text(); // Leer como texto primero
+        try {
+          return JSON.parse(text); // Intentar parsear el texto
+        } catch (jsonError) {
+          console.error("Error parseando JSON. Respuesta cruda:", text);
+          throw new Error("La respuesta del servidor no es un JSON válido. Revisa la consola para ver el detalle.");
+        }
       }
 
       // Si es texto plano (como el endpoint de registro)

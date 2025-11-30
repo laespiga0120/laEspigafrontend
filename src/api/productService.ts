@@ -45,6 +45,7 @@ export interface ProductoInventario {
 }
 
 export interface LoteDetalle {
+  idLote: number;
   codigoLote: string;
   cantidad: number;
   fechaVencimiento: string | null;
