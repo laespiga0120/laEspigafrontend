@@ -4,75 +4,82 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, CheckCircle2, ArrowLeft, Mail, KeyRound, Lock } from "lucide-react";
+import { CheckCircle2, ArrowLeft, Mail, KeyRound, Lock, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { AuthService } from "@/api/authService";
+import { toast } from "sonner";
 
 const ForgotPassword = () => {
     const navigate = useNavigate();
     const [step, setStep] = useState<1 | 2 | 3>(1);
+    const [loading, setLoading] = useState(false);
+    
+    // Datos del flujo
     const [email, setEmail] = useState("");
     const [code, setCode] = useState("");
     const [passwords, setPasswords] = useState({
         newPassword: "",
         confirmPassword: ""
     });
+
+    // Errores locales
     const [errors, setErrors] = useState({
         email: "",
         code: "",
         newPassword: "",
-        confirmPassword: "",
-        general: ""
+        confirmPassword: ""
     });
     const [success, setSuccess] = useState(false);
 
-    // Paso 1: Enviar Código
-    const handleSendCode = (e: React.FormEvent) => {
+    // PASO 1: ENVIAR CÓDIGO
+    const handleSendCode = async (e: React.FormEvent) => {
         e.preventDefault();
-        setErrors({ ...errors, email: "", general: "" });
+        setErrors({ ...errors, email: "" });
 
-        if (!email.trim()) {
-            setErrors(prev => ({ ...prev, email: "El correo electrónico es requerido" }));
-            return;
-        }
-
-        if (!/\S+@\S+\.\S+/.test(email)) {
+        if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
             setErrors(prev => ({ ...prev, email: "Ingrese un correo electrónico válido" }));
             return;
         }
 
-        // Simular envío de código
-        console.log(`Código enviado a ${email}: 123456`);
-        setStep(2);
+        setLoading(true);
+        try {
+            await AuthService.sendRecoveryCode(email);
+            toast.success("Código enviado. Revise su correo.");
+            setStep(2);
+        } catch (error: any) {
+            toast.error(error.message || "Error al enviar el código.");
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // Paso 2: Verificar Código
-    const handleVerifyCode = (e: React.FormEvent) => {
+    // PASO 2: VERIFICAR CÓDIGO
+    const handleVerifyCode = async (e: React.FormEvent) => {
         e.preventDefault();
-        setErrors({ ...errors, code: "", general: "" });
+        setErrors({ ...errors, code: "" });
 
-        if (!code.trim()) {
-            setErrors(prev => ({ ...prev, code: "El código es requerido" }));
-            return;
-        }
-
-        if (code.length !== 6) {
+        if (!code.trim() || code.length !== 6) {
             setErrors(prev => ({ ...prev, code: "El código debe tener 6 dígitos" }));
             return;
         }
 
-        // Simular validación (Código hardcodeado: 123456)
-        if (code !== "123456") {
-            setErrors(prev => ({ ...prev, code: "Código incorrecto. Intente nuevamente." }));
-            return;
+        setLoading(true);
+        try {
+            await AuthService.verifyRecoveryCode(email, code);
+            toast.success("Código verificado correctamente.");
+            setStep(3);
+        } catch (error: any) {
+            setErrors(prev => ({ ...prev, code: "Código incorrecto o expirado." }));
+            toast.error("Error en la verificación.");
+        } finally {
+            setLoading(false);
         }
-
-        setStep(3);
     };
 
-    // Paso 3: Cambiar Contraseña
-    const handleResetPassword = (e: React.FormEvent) => {
+    // PASO 3: CAMBIAR CONTRASEÑA
+    const handleResetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        setErrors({ ...errors, newPassword: "", confirmPassword: "", general: "" });
+        setErrors({ ...errors, newPassword: "", confirmPassword: "" });
 
         const { newPassword, confirmPassword } = passwords;
         let hasErrors = false;
@@ -103,11 +110,18 @@ const ForgotPassword = () => {
             return;
         }
 
-        // Simular guardado
-        setSuccess(true);
-        setTimeout(() => {
-            navigate("/auth");
-        }, 3000);
+        setLoading(true);
+        try {
+            await AuthService.resetPassword(email, code, newPassword);
+            setSuccess(true);
+            setTimeout(() => {
+                navigate("/auth");
+            }, 3000);
+        } catch (error: any) {
+            toast.error(error.message || "No se pudo cambiar la contraseña.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -118,11 +132,7 @@ const ForgotPassword = () => {
                     {/* Header */}
                     <div className="flex flex-col items-center space-y-4">
                         <div className="w-20 h-20 flex items-center justify-center bg-background/50 rounded-full shadow-sm mb-2">
-                            <img
-                                src={logo}
-                                alt="La Espiga"
-                                className="w-12 h-12 object-contain"
-                            />
+                            <img src={logo} alt="La Espiga" className="w-12 h-12 object-contain" />
                         </div>
                         <h1 className="text-2xl font-playfair font-bold text-foreground text-center">
                             {step === 1 && "Recuperar Cuenta"}
@@ -165,13 +175,14 @@ const ForgotPassword = () => {
                                                 value={email}
                                                 onChange={(e) => setEmail(e.target.value)}
                                                 className="pl-10 h-12 rounded-xl border-2 bg-background/50 focus:border-primary transition-all"
+                                                disabled={loading}
                                             />
                                         </div>
                                         {errors.email && <p className="text-sm text-destructive mt-1">{errors.email}</p>}
                                     </div>
 
-                                    <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold shadow-md hover:shadow-lg transition-all">
-                                        Enviar Código
+                                    <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold shadow-md hover:shadow-lg transition-all" disabled={loading}>
+                                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Enviar Código"}
                                     </Button>
                                 </form>
                             )}
@@ -191,20 +202,22 @@ const ForgotPassword = () => {
                                                 value={code}
                                                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                                                 className="pl-10 h-12 rounded-xl border-2 bg-background/50 focus:border-primary transition-all tracking-widest text-lg"
+                                                disabled={loading}
                                             />
                                         </div>
                                         {errors.code && <p className="text-sm text-destructive mt-1">{errors.code}</p>}
                                     </div>
 
-                                    <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold shadow-md hover:shadow-lg transition-all">
-                                        Verificar Código
+                                    <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold shadow-md hover:shadow-lg transition-all" disabled={loading}>
+                                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Verificar Código"}
                                     </Button>
 
                                     <Button
                                         type="button"
                                         variant="ghost"
-                                        onClick={() => setStep(1)}
+                                        onClick={() => { setStep(1); setCode(""); }}
                                         className="w-full text-muted-foreground hover:text-foreground"
+                                        disabled={loading}
                                     >
                                         Cambiar correo electrónico
                                     </Button>
@@ -225,6 +238,7 @@ const ForgotPassword = () => {
                                                 value={passwords.newPassword}
                                                 onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
                                                 className="pl-10 h-12 rounded-xl border-2 bg-background/50 focus:border-primary transition-all"
+                                                disabled={loading}
                                             />
                                         </div>
                                         {errors.newPassword && <p className="text-sm text-destructive mt-1">{errors.newPassword}</p>}
@@ -241,6 +255,7 @@ const ForgotPassword = () => {
                                                 value={passwords.confirmPassword}
                                                 onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
                                                 className="pl-10 h-12 rounded-xl border-2 bg-background/50 focus:border-primary transition-all"
+                                                disabled={loading}
                                             />
                                         </div>
                                         {errors.confirmPassword && <p className="text-sm text-destructive mt-1">{errors.confirmPassword}</p>}
@@ -256,8 +271,8 @@ const ForgotPassword = () => {
                                         </ul>
                                     </div>
 
-                                    <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold shadow-md hover:shadow-lg transition-all">
-                                        Guardar Contraseña
+                                    <Button type="submit" className="w-full h-12 rounded-xl text-base font-semibold shadow-md hover:shadow-lg transition-all" disabled={loading}>
+                                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Guardar Contraseña"}
                                     </Button>
                                 </form>
                             )}

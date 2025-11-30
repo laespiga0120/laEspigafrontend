@@ -106,4 +106,30 @@ export const AuthService = {
       return null;
     }
   },
+
+  // --- NUEVOS MÉTODOS DE RECUPERACIÓN DE CONTRASEÑA ---
+
+  // Paso 1: Enviar correo con código
+  sendRecoveryCode: async (email: string): Promise<{ message: string }> => {
+    return apiRequest("/auth/recovery/send-code", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  // Paso 2: Verificar código
+  verifyRecoveryCode: async (email: string, codigo: string): Promise<{ valid: boolean; message: string }> => {
+    return apiRequest("/auth/recovery/verify-code", {
+      method: "POST",
+      body: JSON.stringify({ email, codigo }),
+    });
+  },
+
+  // Paso 3: Restablecer contraseña
+  resetPassword: async (email: string, codigo: string, newPassword: string): Promise<{ message: string }> => {
+    return apiRequest("/auth/recovery/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, codigo, newPassword }),
+    });
+  },
 };
