@@ -170,4 +170,9 @@ export const ProductService = {
       `/api/v1/ubicaciones/repisas/${repisaId}/detalle`
     );
   },
+
+  // --- NUEVA FUNCIÓN PARA ALERTAS DE STOCK ---
+  getAlertasStock: (): Promise<ProductoInventario[]> => {
+    return apiRequest<ProductoInventario[]>("/api/productos/alertas");
+  },
 };

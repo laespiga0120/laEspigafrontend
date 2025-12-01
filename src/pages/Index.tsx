@@ -43,7 +43,11 @@ import {
   Loader2,
   Edit,
   AlertTriangle,
+  Package,
+  AlertCircle,
+  MapPin
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import {
   ProductService,
@@ -55,7 +59,6 @@ import {
   ProductoUpdatePayload,
   UbicacionDto,
 } from "../api/productService";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "../components/ui/skeleton";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
@@ -78,6 +81,7 @@ const Index = () => {
 
   // Estados de Datos
   const [products, setProducts] = useState<ProductoInventario[]>([]);
+  const [stockAlerts, setStockAlerts] = useState<ProductoInventario[]>([]); // Estado para alertas
   const [allCategorias, setAllCategorias] = useState<CategoriaFiltro[]>([]);
   const [allRepisas, setAllRepisas] = useState<RepisaFiltro[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -174,7 +178,7 @@ const Index = () => {
     loadFiltros();
   }, []);
 
-  // Cargar inventario
+  // Cargar inventario y alertas
   const loadInventario = async () => {
     setIsLoading(true);
     try {
@@ -190,6 +194,11 @@ const Index = () => {
       };
       const data = await ProductService.getInventario(params);
       setProducts(data);
+
+      // Cargar alertas de stock por separado
+      const alertsData = await ProductService.getAlertasStock();
+      setStockAlerts(alertsData);
+
     } catch (error) {
       console.error("Error fetching inventario:", error);
       toast.error("Error al cargar el inventario.");
@@ -749,9 +758,6 @@ const Index = () => {
     ));
   };
 
-  // Productos con stock bajo el mínimo
-  const lowStockProducts = mockProducts.filter((product) => product.stock < product.stockMinimo);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-secondary via-background to-muted flex flex-col">
       <div className="flex flex-1">
@@ -767,40 +773,43 @@ const Index = () => {
               </p>
             </div>
 
-            {/* Alertas de Stock Bajo */}
-            {lowStockProducts.length > 0 && (
-              <div className="mb-6 lg:ml-0 ml-14">
-                <Alert variant="destructive" className="border-2 shadow-xl">
+            {/* --- SECCIÓN DE ALERTA DE STOCK MÍNIMO --- */}
+            {stockAlerts.length > 0 && (
+              <div className="mb-6 lg:ml-0 ml-14 animate-fade-in">
+                <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-900 dark:bg-red-900/20 dark:border-red-800 dark:text-red-200 shadow-md">
                   <AlertTriangle className="h-5 w-5" />
-                  <AlertTitle className="text-lg font-bold">
-                    ¡Alerta de Stock Bajo!
-                  </AlertTitle>
-                  <AlertDescription className="mt-2">
+                  <AlertTitle className="text-lg font-bold mb-2">Alerta de Stock Mínimo</AlertTitle>
+                  <AlertDescription>
                     <p className="mb-3 font-medium">
-                      {lowStockProducts.length} {lowStockProducts.length === 1 ? 'producto está' : 'productos están'} por debajo del stock mínimo:
+                      Los siguientes productos están próximos a agotarse o por debajo del stock mínimo:
                     </p>
-                    <div className="space-y-2">
-                      {lowStockProducts.map((product) => (
-                        <div key={product.id} className="flex items-center justify-between bg-background/50 rounded-lg p-3 border border-destructive/30">
-                          <div className="flex-1">
-                            <span className="font-semibold">{product.nombre}</span>
-                            <span className="text-sm ml-2">({product.categoria})</span>
+                    <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto pr-2">
+                      {stockAlerts.map((p) => (
+                        <div key={p.idProducto} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white/60 dark:bg-black/20 p-3 rounded-md border border-red-100 dark:border-red-800 hover:bg-white/80 dark:hover:bg-black/40 transition-colors">
+                          <div className="flex items-center gap-2 mb-2 sm:mb-0 sm:w-1/3">
+                            <Package className="h-4 w-4 text-red-700/60 dark:text-red-300/60" />
+                            <span className="font-bold text-base text-foreground truncate" title={p.nombre}>
+                              {p.nombre}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-4">
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">Stock actual:</span>{' '}
-                              <span className="font-bold">{product.stock}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">Stock mínimo:</span>{' '}
-                              <span className="font-bold">{product.stockMinimo}</span>
-                            </div>
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">Ubicación:</span>{' '}
-                              <span className="font-mono font-bold">
-                                {product.ubicacion.repisa}-{product.ubicacion.fila}-{product.ubicacion.nivel}
-                              </span>
-                            </div>
+                          
+                          <div className="flex flex-wrap items-center gap-4 text-sm w-full sm:w-2/3 sm:justify-end">
+                             <div className="flex items-center gap-1.5 bg-red-100/50 dark:bg-red-900/20 px-2 py-1 rounded border border-red-100 dark:border-red-900/30">
+                               <AlertCircle className="h-3 w-3 text-red-600" />
+                               <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider">Stock Actual:</span>
+                               <span className="font-mono font-bold text-red-600 dark:text-red-400 text-base">{p.stockDisponible}</span>
+                             </div>
+                             
+                             <div className="flex items-center gap-1.5">
+                               <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider">Mínimo:</span>
+                               <span className="font-mono font-medium text-foreground">{p.stockMinimo}</span>
+                             </div>
+
+                             <div className="flex items-center gap-1.5 ml-auto sm:ml-0">
+                               <MapPin className="h-3 w-3 text-muted-foreground" />
+                               <span className="text-muted-foreground text-xs uppercase font-bold tracking-wider">Ubicación:</span>
+                               <span className="font-medium bg-secondary/80 px-2 py-0.5 rounded text-xs text-foreground font-mono">{p.ubicacion}</span>
+                             </div>
                           </div>
                         </div>
                       ))}
