@@ -98,12 +98,6 @@ const SupplierEntries = () => {
         toast.success(`Exportando ${filename}...`);
     };
 
-    const handleExportExcel = () => {
-        if (!dateFrom) return;
-        const filename = `reporte_entradas_proveedor_${format(dateFrom, "yyyy-MM-dd")}.xlsx`;
-        toast.success(`Exportando ${filename}...`);
-    };
-
     return (
         <div className="bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl lg:rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8">
             {/* Filtros */}
@@ -210,11 +204,6 @@ const SupplierEntries = () => {
                         <Button variant="outline" onClick={handleExportPDF} className="gap-2">
                             <FileDown className="w-4 h-4" />
                             Exportar PDF
-                        </Button>
-                        <Button variant="outline" onClick={handleExportExcel} className="gap-2">
-                            <FileSpreadsheet className="w-4 h-4" />
-                            Exportar Excel
-                        </Button>
                     </div>
 
                     {/* Total acumulado */}
@@ -289,5 +278,6 @@ const SupplierEntries = () => {
         </div>
     );
 };
+
 
 export default SupplierEntries;
