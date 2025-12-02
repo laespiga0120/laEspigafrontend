@@ -15,6 +15,7 @@ import InventoryReport from "./pages/InventoryReport";
 import InventoryReview from "./pages/InventoryReview";
 import Movements from "./pages/Movements";
 import ManageUsers from "./pages/ManageUsers";
+import CurrentInventoryReport from "./pages/CurrentInventoryReport";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/revision-inventario" element={<InventoryReview />} />
             <Route path="/movimientos" element={<Movements />} />
             <Route path="/administrar-usuarios" element={<ManageUsers />} />
+            <Route path="/reporte-inventario-actual" element={<CurrentInventoryReport />} />
           </Route>
 
           {/* Ruta por defecto para URLs no encontradas */}
