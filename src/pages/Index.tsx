@@ -43,6 +43,7 @@ import {
   Loader2,
   Edit,
   AlertTriangle,
+  FileBarChart,
   Package,
   AlertCircle,
   MapPin
@@ -947,6 +948,18 @@ const Index = () => {
                   </Button>
                 </div>
               </div>
+               </div>
+
+            {/* Botón Reporte Inventario Actual */}
+            <div className="mb-6 lg:ml-0 ml-14">
+              <Button
+                onClick={() => navigate("/reporte-inventario-actual")}
+                className="flex items-center gap-2"
+                variant="default"
+              >
+                <FileBarChart className="h-4 w-4" />
+                Reporte Inventario Actual
+              </Button>
             </div>
 
             <div className="lg:ml-0 ml-14">
