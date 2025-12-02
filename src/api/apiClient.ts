@@ -60,6 +60,13 @@ export async function apiRequest<T>(
 
     const response = await fetch(finalUrl, config);
 
+    // Manejo de sesión expirada (401/403)
+    if (response.status === 401 || response.status === 403) {
+      localStorage.removeItem("token");
+      window.location.href = "/auth/login";
+      throw new Error("Sesión expirada. Por favor inicie sesión nuevamente.");
+    }
+
     // Si la respuesta es exitosa
     if (response.ok) {
       const contentType = response.headers.get("content-type");

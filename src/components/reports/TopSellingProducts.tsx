@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -15,47 +15,65 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { CalendarIcon, FileDown, ArrowUpDown } from "lucide-react";
+import { CalendarIcon, FileDown, ArrowUpDown, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { ReportService, ProductoMasVendido } from "@/api/reportService";
 
-interface TopProduct {
-    ranking: number;
-    producto: string;
-    categoria: string;
-    cantidadVendida: number;
-}
-
-const mockTopProducts: TopProduct[] = [
-    { ranking: 1, producto: "Harina integral", categoria: "Harinas", cantidadVendida: 250 },
-    { ranking: 2, producto: "Azúcar blanca", categoria: "Endulzantes", cantidadVendida: 180 },
-    { ranking: 3, producto: "Aceite de oliva", categoria: "Aceites", cantidadVendida: 150 },
-    { ranking: 4, producto: "Sal de mesa", categoria: "Condimentos", cantidadVendida: 120 },
-    { ranking: 5, producto: "Pan dulce", categoria: "Panadería", cantidadVendida: 95 },
-];
-
-type SortField = "ranking" | "producto" | "categoria" | "cantidadVendida";
+// Extendemos la interfaz que viene del servicio para añadir el ranking en el frontend si es necesario
+// aunque lo podemos calcular al vuelo (index + 1)
+type SortField = "ranking" | "nombreProducto" | "categoria" | "cantidadVendida";
 
 const TopSellingProducts = () => {
     const [dateFrom, setDateFrom] = useState<Date>();
     const [dateTo, setDateTo] = useState<Date>();
     const [reportGenerated, setReportGenerated] = useState(false);
-    const [products, setProducts] = useState<TopProduct[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [products, setProducts] = useState<ProductoMasVendido[]>([]);
+    
+    // Estado de ordenamiento
     const [sortField, setSortField] = useState<SortField>("cantidadVendida");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-    const isFormValid = dateFrom && dateTo;
+    // Validar fechas
+    useEffect(() => {
+        if (dateFrom && dateTo && dateFrom > dateTo) {
+            toast.error("La fecha 'Desde' no puede ser posterior a la fecha 'Hasta'");
+        }
+    }, [dateFrom, dateTo]);
 
-    const handleGenerateReport = () => {
+    const isDateRangeValid = dateFrom && dateTo && dateFrom <= dateTo;
+    const isFormValid = isDateRangeValid;
+
+    const handleGenerateReport = async () => {
         if (!isFormValid) return;
 
-        // Simular generación de reporte
-        setProducts(mockTopProducts);
-        setReportGenerated(true);
-        toast.success("Reporte generado exitosamente");
+        setLoading(true);
+        try {
+            const fromStr = format(dateFrom, "yyyy-MM-dd");
+            const toStr = format(dateTo, "yyyy-MM-dd");
+
+            // Llamada al servicio real
+            const data = await ReportService.getTopSelling(fromStr, toStr);
+
+            if (data.length === 0) {
+                toast.info("No hubo ventas en el periodo seleccionado");
+            } else {
+                toast.success("Reporte generado exitosamente");
+            }
+
+            setProducts(data);
+            setReportGenerated(true);
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al generar el reporte");
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSort = (field: SortField) => {
@@ -67,12 +85,28 @@ const TopSellingProducts = () => {
         }
     };
 
+    // Lógica de ordenamiento en cliente (útil si el usuario cambia el orden por columna)
     const sortedProducts = [...products].sort((a, b) => {
         const multiplier = sortDirection === "asc" ? 1 : -1;
-        if (sortField === "cantidadVendida" || sortField === "ranking") {
-            return (a[sortField] - b[sortField]) * multiplier;
+        
+        // El ranking es implícito basado en la cantidad vendida original,
+        // pero si ordenamos por otra cosa, el ranking visual cambiará o perderá sentido.
+        // Para mantener la lógica simple:
+        
+        if (sortField === "cantidadVendida") {
+            return (a.cantidadVendida - b.cantidadVendida) * multiplier;
         }
-        return a[sortField].localeCompare(b[sortField]) * multiplier;
+        if (sortField === "nombreProducto") {
+            return a.nombreProducto.localeCompare(b.nombreProducto) * multiplier;
+        }
+        if (sortField === "categoria") {
+            return a.categoria.localeCompare(b.categoria) * multiplier;
+        }
+        // Ranking (aproximación: usamos cantidad vendida inversa)
+        if (sortField === "ranking") {
+            return (b.cantidadVendida - a.cantidadVendida) * multiplier;
+        }
+        return 0;
     });
 
     const handleExportPDF = () => {
@@ -93,9 +127,10 @@ const TopSellingProducts = () => {
         doc.text(`Rango: ${format(dateFrom, "dd/MM/yyyy")} - ${format(dateTo, "dd/MM/yyyy")}`, 14, 34);
 
         // Datos de la tabla
-        const tableData = sortedProducts.map((product) => [
-            product.ranking.toString(),
-            product.producto,
+        // Nota: Para el PDF, regeneramos el ranking basado en el orden actual o el original
+        const tableData = sortedProducts.map((product, index) => [
+            (index + 1).toString(), // Ranking relativo a la lista mostrada
+            product.nombreProducto,
             product.categoria,
             product.cantidadVendida.toString()
         ]);
@@ -193,25 +228,32 @@ const TopSellingProducts = () => {
 
                 <Button
                     onClick={handleGenerateReport}
-                    disabled={!isFormValid}
+                    disabled={!isFormValid || loading}
                     className="sm:w-auto"
                 >
-                    Generar Reporte
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {loading ? "Generando..." : "Generar Reporte"}
                 </Button>
             </div>
 
             {/* Área de resultados */}
-            {!reportGenerated ? (
+            {!reportGenerated && !loading ? (
                 <div className="text-center py-16 border-2 border-dashed border-border rounded-lg">
                     <p className="text-muted-foreground">
                         Seleccione un rango de fechas para ver los resultados
+                    </p>
+                </div>
+            ) : products.length === 0 && reportGenerated ? (
+                <div className="text-center py-16 border-2 border-dashed border-border rounded-lg">
+                    <p className="text-muted-foreground">
+                        No se encontraron productos vendidos en este periodo
                     </p>
                 </div>
             ) : (
                 <>
                     {/* Botones de exportación */}
                     <div className="flex justify-end gap-2 mb-4">
-                        <Button variant="outline" onClick={handleExportPDF} className="gap-2">
+                        <Button variant="outline" onClick={handleExportPDF} className="gap-2" disabled={products.length === 0}>
                             <FileDown className="w-4 h-4" />
                             Exportar PDF
                         </Button>
@@ -237,7 +279,7 @@ const TopSellingProducts = () => {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => handleSort("producto")}
+                                            onClick={() => handleSort("nombreProducto")}
                                             className="font-semibold"
                                         >
                                             Producto
@@ -269,10 +311,13 @@ const TopSellingProducts = () => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {sortedProducts.map((product) => (
-                                    <TableRow key={product.ranking}>
-                                        <TableCell className="font-medium">{product.ranking}</TableCell>
-                                        <TableCell>{product.producto}</TableCell>
+                                {sortedProducts.map((product, index) => (
+                                    <TableRow key={index}>
+                                        {/* Calculamos el ranking visualmente basado en el índice de la lista ordenada */}
+                                        <TableCell className="font-medium text-center w-20">
+                                            #{index + 1}
+                                        </TableCell>
+                                        <TableCell>{product.nombreProducto}</TableCell>
                                         <TableCell>{product.categoria}</TableCell>
                                         <TableCell className="font-semibold text-primary">
                                             {product.cantidadVendida}
@@ -287,6 +332,5 @@ const TopSellingProducts = () => {
         </div>
     );
 };
-
 
 export default TopSellingProducts;

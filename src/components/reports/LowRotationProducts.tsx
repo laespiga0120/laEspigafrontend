@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,56 +17,67 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { CalendarIcon, FileDown, FileSpreadsheet, ArrowUpDown } from "lucide-react";
+import { CalendarIcon, FileDown, ArrowUpDown, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { ReportService, ProductoBajaRotacion } from "@/api/reportService";
 
-interface LowRotationProduct {
-    producto: string;
-    stockActual: number;
-    cantidadVendida: number;
-}
+// Eliminamos la interfaz local y usamos la del servicio
+// Eliminamos mockLowRotationProducts
 
-const mockLowRotationProducts: LowRotationProduct[] = [
-    { producto: "Vinagre balsámico", stockActual: 45, cantidadVendida: 3 },
-    { producto: "Pimienta negra molida", stockActual: 32, cantidadVendida: 5 },
-    { producto: "Orégano seco", stockActual: 28, cantidadVendida: 7 },
-    { producto: "Aceite de coco", stockActual: 50, cantidadVendida: 8 },
-];
-
-type SortField = "producto" | "stockActual" | "cantidadVendida";
+type SortField = "nombreProducto" | "stockActual" | "cantidadVendida";
 
 const LowRotationProducts = () => {
     const [dateFrom, setDateFrom] = useState<Date>();
     const [dateTo, setDateTo] = useState<Date>();
     const [threshold, setThreshold] = useState<string>("");
     const [reportGenerated, setReportGenerated] = useState(false);
-    const [products, setProducts] = useState<LowRotationProduct[]>([]);
+    const [products, setProducts] = useState<ProductoBajaRotacion[]>([]);
+    const [loading, setLoading] = useState(false);
+    
+    // Estado para ordenamiento
     const [sortField, setSortField] = useState<SortField>("cantidadVendida");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-    const isFormValid = dateFrom && dateTo && threshold && Number(threshold) > 0;
-
-    const handleGenerateReport = () => {
-        if (!isFormValid) return;
-
-        // Simular generación de reporte filtrado por umbral
-        const thresholdNum = Number(threshold);
-        const filtered = mockLowRotationProducts.filter(p => p.cantidadVendida <= thresholdNum);
-
-        if (filtered.length === 0) {
-            toast.info("No se encontraron productos que cumplan con el umbral especificado");
-            setProducts([]);
-            setReportGenerated(true);
-            return;
+    // Validar fechas
+    useEffect(() => {
+        if (dateFrom && dateTo && dateFrom > dateTo) {
+            toast.error("La fecha 'Desde' no puede ser posterior a la fecha 'Hasta'");
         }
+    }, [dateFrom, dateTo]);
 
-        setProducts(filtered);
-        setReportGenerated(true);
-        toast.success("Reporte generado exitosamente");
+    const isDateRangeValid = dateFrom && dateTo && dateFrom <= dateTo;
+    const isFormValid = isDateRangeValid && threshold && Number(threshold) > 0;
+
+    const handleGenerateReport = async () => {
+        if (!dateFrom || !dateTo || !threshold) return;
+
+        setLoading(true);
+        try {
+            const fromStr = format(dateFrom, "yyyy-MM-dd");
+            const toStr = format(dateTo, "yyyy-MM-dd");
+            
+            // Llamada al servicio real
+            const data = await ReportService.getLowRotation(fromStr, toStr, Number(threshold));
+
+            if (data.length === 0) {
+                toast.info("No se encontraron productos que cumplan con el umbral especificado");
+            } else {
+                toast.success("Reporte generado exitosamente");
+            }
+            
+            setProducts(data);
+            setReportGenerated(true);
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al generar el reporte. Intente nuevamente.");
+            setProducts([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSort = (field: SortField) => {
@@ -83,11 +94,12 @@ const LowRotationProducts = () => {
         if (sortField === "stockActual" || sortField === "cantidadVendida") {
             return (a[sortField] - b[sortField]) * multiplier;
         }
+        // Para strings (nombreProducto)
         return a[sortField].localeCompare(b[sortField]) * multiplier;
     });
 
     const handleExportPDF = () => {
-        if (!dateFrom) return;
+        if (!dateFrom || !dateTo) return;
         
         const doc = new jsPDF();
         const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: es });
@@ -102,20 +114,18 @@ const LowRotationProducts = () => {
         doc.setFont("helvetica", "normal");
         doc.text(`Fecha de emisión: ${dateStr} - ${timeStr}`, 14, 28);
         doc.text(`Desde: ${format(dateFrom, "dd/MM/yyyy")}`, 14, 34);
-        if (dateTo) {
-            doc.text(`Hasta: ${format(dateTo, "dd/MM/yyyy")}`, 14, 40);
-        }
-        doc.text(`Umbral de ventas: ${threshold} unidades`, 14, dateTo ? 46 : 40);
+        doc.text(`Hasta: ${format(dateTo, "dd/MM/yyyy")}`, 14, 40);
+        doc.text(`Umbral de ventas: ${threshold} unidades`, 14, 46);
 
-        // Datos de la tabla
+        // Datos de la tabla mapeados correctamente
         const tableData = sortedProducts.map((product) => [
-            product.producto,
+            product.nombreProducto,
             product.stockActual.toString(),
             product.cantidadVendida.toString()
         ]);
 
         autoTable(doc, {
-            startY: dateTo ? 52 : 46,
+            startY: 52,
             head: [["Producto", "Stock Actual", "Cantidad Vendida"]],
             body: tableData,
             styles: {
@@ -231,20 +241,21 @@ const LowRotationProducts = () => {
 
                 <Button
                     onClick={handleGenerateReport}
-                    disabled={!isFormValid}
+                    disabled={!isFormValid || loading}
                 >
-                    Generar Reporte
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {loading ? "Generando..." : "Generar Reporte"}
                 </Button>
             </div>
 
             {/* Área de resultados */}
-            {!reportGenerated ? (
+            {!reportGenerated && !loading ? (
                 <div className="text-center py-16 border-2 border-dashed border-border rounded-lg">
                     <p className="text-muted-foreground">
                         Complete los filtros obligatorios para ver los resultados
                     </p>
                 </div>
-            ) : products.length === 0 ? (
+            ) : products.length === 0 && reportGenerated ? (
                 <div className="text-center py-16 border-2 border-dashed border-border rounded-lg">
                     <p className="text-muted-foreground">
                         No se encontraron productos con baja rotación según el umbral especificado
@@ -254,7 +265,7 @@ const LowRotationProducts = () => {
                 <>
                     {/* Botones de exportación */}
                     <div className="flex justify-end gap-2 mb-4">
-                        <Button variant="outline" onClick={handleExportPDF} className="gap-2">
+                        <Button variant="outline" onClick={handleExportPDF} className="gap-2" disabled={products.length === 0}>
                             <FileDown className="w-4 h-4" />
                             Exportar PDF
                         </Button>
@@ -269,7 +280,7 @@ const LowRotationProducts = () => {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => handleSort("producto")}
+                                            onClick={() => handleSort("nombreProducto")}
                                             className="font-semibold"
                                         >
                                             Nombre del producto
@@ -303,7 +314,7 @@ const LowRotationProducts = () => {
                             <TableBody>
                                 {sortedProducts.map((product, idx) => (
                                     <TableRow key={idx}>
-                                        <TableCell className="font-medium">{product.producto}</TableCell>
+                                        <TableCell className="font-medium">{product.nombreProducto}</TableCell>
                                         <TableCell>{product.stockActual}</TableCell>
                                         <TableCell className="text-destructive font-semibold">
                                             {product.cantidadVendida}
@@ -322,6 +333,5 @@ const LowRotationProducts = () => {
         </div>
     );
 };
-
 
 export default LowRotationProducts;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
@@ -23,55 +23,100 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { CalendarIcon, FileDown, FileSpreadsheet, ArrowUpDown } from "lucide-react";
+import { CalendarIcon, FileDown, ArrowUpDown, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { ProveedorService } from "@/api/proveedorService";
+import { ReportService, EntradaProveedor } from "@/api/reportService";
 
-interface SupplierEntry {
-    producto: string;
-    lote: string;
-    cantidadRecibida: number;
-    fechaEntrada: Date;
+// Interfaz para el combo de proveedores
+interface ProveedorOption {
+    idProveedor: number;
+    nombreProveedor: string;
+    telefono: string;
 }
 
-const mockSuppliers = [
-    "Proveedor ABC",
-    "Distribuidora XYZ",
-    "Comercial Los Andes",
-    "Abastos del Sur",
-];
-
-const mockEntries: SupplierEntry[] = [
-    { producto: "Harina integral", lote: "L-001", cantidadRecibida: 100, fechaEntrada: new Date(2025, 0, 15) },
-    { producto: "Azúcar blanca", lote: "L-002", cantidadRecibida: 80, fechaEntrada: new Date(2025, 0, 20) },
-    { producto: "Aceite de oliva", lote: "L-003", cantidadRecibida: 50, fechaEntrada: new Date(2025, 1, 5) },
-    { producto: "Sal de mesa", lote: "L-004", cantidadRecibida: 120, fechaEntrada: new Date(2025, 1, 10) },
-    { producto: "Harina integral", lote: "L-005", cantidadRecibida: 50, fechaEntrada: new Date(2025, 1, 12) },
-];
-
-type SortField = "producto" | "lote" | "cantidadRecibida" | "fechaEntrada";
+type SortField = "nombreProducto" | "codigoLote" | "cantidadRecibida" | "fechaEntrada";
 
 const SupplierEntries = () => {
-    const [supplier, setSupplier] = useState<string>("");
+    // Estado para el filtro de proveedor (guardamos el ID como string)
+    const [supplierId, setSupplierId] = useState<string>("");
+    // Lista de proveedores cargados desde la BD
+    const [proveedores, setProveedores] = useState<ProveedorOption[]>([]);
+    
     const [dateFrom, setDateFrom] = useState<Date>();
     const [dateTo, setDateTo] = useState<Date>();
+    
     const [reportGenerated, setReportGenerated] = useState(false);
-    const [entries, setEntries] = useState<SupplierEntry[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [entries, setEntries] = useState<EntradaProveedor[]>([]);
+    
     const [sortField, setSortField] = useState<SortField>("fechaEntrada");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
-    const isFormValid = supplier && dateFrom && dateTo;
+    // Cargar proveedores al montar el componente
+    useEffect(() => {
+        const fetchProveedores = async () => {
+            try {
+                // Usamos listWithCount() que usa un endpoint estable (/con-conteo)
+                // en lugar de listProveedores() que da error 500
+                const data = await ProveedorService.listWithCount();
+                
+                // Mapeamos los datos. listWithCount devuelve ProveedorDetalle
+                // que tiene idProveedor, nombreProveedor, telefono, cantidadProductos
+                const proveedoresMapped: ProveedorOption[] = data.map((p: any) => ({
+                    idProveedor: p.idProveedor,
+                    nombreProveedor: p.nombreProveedor,
+                    telefono: p.telefono
+                }));
+                setProveedores(proveedoresMapped);
+            } catch (error) {
+                console.error("Error cargando proveedores:", error);
+                toast.error("No se pudieron cargar los proveedores");
+            }
+        };
+        fetchProveedores();
+    }, []);
 
-    const handleGenerateReport = () => {
+    // Validar fechas
+    useEffect(() => {
+        if (dateFrom && dateTo && dateFrom > dateTo) {
+            toast.error("La fecha 'Desde' no puede ser posterior a la fecha 'Hasta'");
+        }
+    }, [dateFrom, dateTo]);
+
+    const isDateRangeValid = dateFrom && dateTo && dateFrom <= dateTo;
+    const isFormValid = supplierId && isDateRangeValid;
+
+    const handleGenerateReport = async () => {
         if (!isFormValid) return;
 
-        // Simular generación de reporte
-        setEntries(mockEntries);
-        setReportGenerated(true);
-        toast.success("Reporte generado exitosamente");
+        setLoading(true);
+        try {
+            const fromStr = format(dateFrom, "yyyy-MM-dd");
+            const toStr = format(dateTo, "yyyy-MM-dd");
+            
+            // Llamada al endpoint real
+            const data = await ReportService.getSupplierEntries(Number(supplierId), fromStr, toStr);
+
+            if (data.length === 0) {
+                toast.info("No se encontraron entradas para este proveedor en el rango seleccionado");
+            } else {
+                toast.success("Reporte generado exitosamente");
+            }
+            
+            setEntries(data);
+            setReportGenerated(true);
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al generar el reporte");
+            setEntries([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSort = (field: SortField) => {
@@ -89,22 +134,26 @@ const SupplierEntries = () => {
             return (a.cantidadRecibida - b.cantidadRecibida) * multiplier;
         }
         if (sortField === "fechaEntrada") {
-            return (a.fechaEntrada.getTime() - b.fechaEntrada.getTime()) * multiplier;
+            return (new Date(a.fechaEntrada).getTime() - new Date(b.fechaEntrada).getTime()) * multiplier;
         }
-        if (sortField === "lote") {
-            return a.lote.localeCompare(b.lote) * multiplier;
+        if (sortField === "codigoLote") {
+            return (a.codigoLote || "").localeCompare(b.codigoLote || "") * multiplier;
         }
-        return a.producto.localeCompare(b.producto) * multiplier;
+        // nombreProducto
+        return a.nombreProducto.localeCompare(b.nombreProducto) * multiplier;
     });
 
     const totalReceived = entries.reduce((sum, entry) => sum + entry.cantidadRecibida, 0);
 
     const handleExportPDF = () => {
-        if (!dateFrom) return;
+        if (!dateFrom || !dateTo || !supplierId) return;
         
         const doc = new jsPDF();
         const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: es });
         const timeStr = format(new Date(), "HH:mm");
+
+        // Buscar nombre del proveedor seleccionado
+        const selectedSupplierName = proveedores.find(p => p.idProveedor.toString() === supplierId)?.nombreProveedor || "Desconocido";
 
         // Encabezado
         doc.setFontSize(18);
@@ -114,16 +163,16 @@ const SupplierEntries = () => {
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.text(`Fecha de emisión: ${dateStr} - ${timeStr}`, 14, 28);
-        doc.text(`Proveedor: ${supplier}`, 14, 34);
-        doc.text(`Rango: ${format(dateFrom, "dd/MM/yyyy")} - ${format(dateTo!, "dd/MM/yyyy")}`, 14, 40);
+        doc.text(`Proveedor: ${selectedSupplierName}`, 14, 34);
+        doc.text(`Rango: ${format(dateFrom, "dd/MM/yyyy")} - ${format(dateTo, "dd/MM/yyyy")}`, 14, 40);
         doc.text(`Total Recibido: ${totalReceived} unidades`, 14, 46);
 
         // Datos de la tabla
         const tableData = sortedEntries.map((entry) => [
-            entry.producto,
-            entry.lote,
+            entry.nombreProducto,
+            entry.codigoLote || "N/A",
             entry.cantidadRecibida.toString(),
-            format(entry.fechaEntrada, "dd/MM/yyyy", { locale: es })
+            format(new Date(entry.fechaEntrada), "dd/MM/yyyy HH:mm", { locale: es })
         ]);
 
         autoTable(doc, {
@@ -169,14 +218,14 @@ const SupplierEntries = () => {
             <div className="space-y-4 mb-6">
                 <div className="space-y-2">
                     <Label htmlFor="supplier">Proveedor</Label>
-                    <Select value={supplier} onValueChange={setSupplier}>
+                    <Select value={supplierId} onValueChange={setSupplierId}>
                         <SelectTrigger id="supplier" className="max-w-md">
                             <SelectValue placeholder="Seleccionar proveedor" />
                         </SelectTrigger>
-                        <SelectContent className="bg-popover">
-                            {mockSuppliers.map((sup) => (
-                                <SelectItem key={sup} value={sup}>
-                                    {sup}
+                        <SelectContent className="bg-popover max-h-[300px]">
+                            {proveedores.map((sup) => (
+                                <SelectItem key={sup.idProveedor} value={sup.idProveedor.toString()}>
+                                    {sup.nombreProveedor}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -243,20 +292,21 @@ const SupplierEntries = () => {
 
                 <Button
                     onClick={handleGenerateReport}
-                    disabled={!isFormValid}
+                    disabled={!isFormValid || loading}
                 >
-                    Generar Reporte
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {loading ? "Generando..." : "Generar Reporte"}
                 </Button>
             </div>
 
             {/* Área de resultados */}
-            {!reportGenerated ? (
+            {!reportGenerated && !loading ? (
                 <div className="text-center py-16 border-2 border-dashed border-border rounded-lg">
                     <p className="text-muted-foreground">
                         Seleccione un proveedor y un rango de fechas para ver los resultados
                     </p>
                 </div>
-            ) : entries.length === 0 ? (
+            ) : entries.length === 0 && reportGenerated ? (
                 <div className="text-center py-16 border-2 border-dashed border-border rounded-lg">
                     <p className="text-muted-foreground">
                         No se encontraron entradas para el proveedor y rango de fechas seleccionados
@@ -266,7 +316,7 @@ const SupplierEntries = () => {
                 <>
                     {/* Botones de exportación */}
                     <div className="flex justify-end gap-2 mb-4">
-                        <Button variant="outline" onClick={handleExportPDF} className="gap-2">
+                        <Button variant="outline" onClick={handleExportPDF} className="gap-2" disabled={entries.length === 0}>
                             <FileDown className="w-4 h-4" />
                             Exportar PDF
                         </Button>
@@ -289,7 +339,7 @@ const SupplierEntries = () => {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => handleSort("producto")}
+                                            onClick={() => handleSort("nombreProducto")}
                                             className="font-semibold"
                                         >
                                             Nombre del producto
@@ -300,7 +350,7 @@ const SupplierEntries = () => {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => handleSort("lote")}
+                                            onClick={() => handleSort("codigoLote")}
                                             className="font-semibold"
                                         >
                                             Lote
@@ -334,13 +384,13 @@ const SupplierEntries = () => {
                             <TableBody>
                                 {sortedEntries.map((entry, idx) => (
                                     <TableRow key={idx}>
-                                        <TableCell className="font-medium">{entry.producto}</TableCell>
-                                        <TableCell>{entry.lote}</TableCell>
+                                        <TableCell className="font-medium">{entry.nombreProducto}</TableCell>
+                                        <TableCell>{entry.codigoLote || "N/A"}</TableCell>
                                         <TableCell className="font-semibold text-primary">
                                             {entry.cantidadRecibida}
                                         </TableCell>
                                         <TableCell>
-                                            {format(entry.fechaEntrada, "dd/MM/yyyy", { locale: es })}
+                                            {format(new Date(entry.fechaEntrada), "dd/MM/yyyy HH:mm", { locale: es })}
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -356,6 +406,5 @@ const SupplierEntries = () => {
         </div>
     );
 };
-
 
 export default SupplierEntries;
