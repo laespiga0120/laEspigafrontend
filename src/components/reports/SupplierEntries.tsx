@@ -204,6 +204,7 @@ const SupplierEntries = () => {
                         <Button variant="outline" onClick={handleExportPDF} className="gap-2">
                             <FileDown className="w-4 h-4" />
                             Exportar PDF
+                        </Button>
                     </div>
 
                     {/* Total acumulado */}
