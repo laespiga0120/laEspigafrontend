@@ -21,6 +21,8 @@ import { CalendarIcon, FileDown, FileSpreadsheet, ArrowUpDown } from "lucide-rea
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface LowRotationProduct {
     producto: string;
@@ -86,7 +88,66 @@ const LowRotationProducts = () => {
 
     const handleExportPDF = () => {
         if (!dateFrom) return;
+        
+        const doc = new jsPDF();
+        const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: es });
+        const timeStr = format(new Date(), "HH:mm");
+
+        // Encabezado
+        doc.setFontSize(18);
+        doc.setFont("helvetica", "bold");
+        doc.text("Reporte de Productos con Baja Rotación", 14, 20);
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Fecha de emisión: ${dateStr} - ${timeStr}`, 14, 28);
+        doc.text(`Desde: ${format(dateFrom, "dd/MM/yyyy")}`, 14, 34);
+        if (dateTo) {
+            doc.text(`Hasta: ${format(dateTo, "dd/MM/yyyy")}`, 14, 40);
+        }
+        doc.text(`Umbral de ventas: ${threshold} unidades`, 14, dateTo ? 46 : 40);
+
+        // Datos de la tabla
+        const tableData = sortedProducts.map((product) => [
+            product.producto,
+            product.stockActual.toString(),
+            product.cantidadVendida.toString()
+        ]);
+
+        autoTable(doc, {
+            startY: dateTo ? 52 : 46,
+            head: [["Producto", "Stock Actual", "Cantidad Vendida"]],
+            body: tableData,
+            styles: {
+                fontSize: 9,
+                cellPadding: 3,
+            },
+            headStyles: {
+                fillColor: [59, 130, 246],
+                textColor: 255,
+                fontStyle: "bold",
+            },
+            alternateRowStyles: {
+                fillColor: [245, 247, 250],
+            },
+        });
+
+        // Pie de página
+        const pageCount = doc.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(128);
+            doc.text(
+                `Página ${i} de ${pageCount}`,
+                doc.internal.pageSize.width / 2,
+                doc.internal.pageSize.height - 10,
+                { align: "center" }
+            );
+        }
+
         const filename = `Productos_BajaRotacion_${format(dateFrom, "yyyy-MM-dd")}.pdf`;
+        doc.save(filename);
         toast.success(`Exportando ${filename}...`);
     };
 

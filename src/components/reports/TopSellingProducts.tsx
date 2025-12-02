@@ -15,10 +15,12 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { CalendarIcon, FileDown, FileSpreadsheet, ArrowUpDown } from "lucide-react";
+import { CalendarIcon, FileDown, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface TopProduct {
     ranking: number;
@@ -75,7 +77,63 @@ const TopSellingProducts = () => {
 
     const handleExportPDF = () => {
         if (!dateFrom || !dateTo) return;
+        
+        const doc = new jsPDF();
+        const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: es });
+        const timeStr = format(new Date(), "HH:mm");
+
+        // Encabezado
+        doc.setFontSize(18);
+        doc.setFont("helvetica", "bold");
+        doc.text("Reporte de Productos Más Vendidos", 14, 20);
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Fecha de emisión: ${dateStr} - ${timeStr}`, 14, 28);
+        doc.text(`Rango: ${format(dateFrom, "dd/MM/yyyy")} - ${format(dateTo, "dd/MM/yyyy")}`, 14, 34);
+
+        // Datos de la tabla
+        const tableData = sortedProducts.map((product) => [
+            product.ranking.toString(),
+            product.producto,
+            product.categoria,
+            product.cantidadVendida.toString()
+        ]);
+
+        autoTable(doc, {
+            startY: 42,
+            head: [["Ranking", "Producto", "Categoría", "Cantidad Vendida"]],
+            body: tableData,
+            styles: {
+                fontSize: 9,
+                cellPadding: 3,
+            },
+            headStyles: {
+                fillColor: [59, 130, 246],
+                textColor: 255,
+                fontStyle: "bold",
+            },
+            alternateRowStyles: {
+                fillColor: [245, 247, 250],
+            },
+        });
+
+        // Pie de página
+        const pageCount = doc.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(128);
+            doc.text(
+                `Página ${i} de ${pageCount}`,
+                doc.internal.pageSize.width / 2,
+                doc.internal.pageSize.height - 10,
+                { align: "center" }
+            );
+        }
+
         const filename = `TopVentas_${format(dateFrom, "yyyy-MM-dd")}_${format(dateTo, "yyyy-MM-dd")}.pdf`;
+        doc.save(filename);
         toast.success(`Exportando ${filename}...`);
     };
 
