@@ -32,6 +32,7 @@ import autoTable from "jspdf-autotable";
 
 interface SupplierEntry {
     producto: string;
+    lote: string;
     cantidadRecibida: number;
     fechaEntrada: Date;
 }
@@ -44,13 +45,14 @@ const mockSuppliers = [
 ];
 
 const mockEntries: SupplierEntry[] = [
-    { producto: "Harina integral", cantidadRecibida: 100, fechaEntrada: new Date(2025, 0, 15) },
-    { producto: "Azúcar blanca", cantidadRecibida: 80, fechaEntrada: new Date(2025, 0, 20) },
-    { producto: "Aceite de oliva", cantidadRecibida: 50, fechaEntrada: new Date(2025, 1, 5) },
-    { producto: "Sal de mesa", cantidadRecibida: 120, fechaEntrada: new Date(2025, 1, 10) },
+    { producto: "Harina integral", lote: "L-001", cantidadRecibida: 100, fechaEntrada: new Date(2025, 0, 15) },
+    { producto: "Azúcar blanca", lote: "L-002", cantidadRecibida: 80, fechaEntrada: new Date(2025, 0, 20) },
+    { producto: "Aceite de oliva", lote: "L-003", cantidadRecibida: 50, fechaEntrada: new Date(2025, 1, 5) },
+    { producto: "Sal de mesa", lote: "L-004", cantidadRecibida: 120, fechaEntrada: new Date(2025, 1, 10) },
+    { producto: "Harina integral", lote: "L-005", cantidadRecibida: 50, fechaEntrada: new Date(2025, 1, 12) },
 ];
 
-type SortField = "producto" | "cantidadRecibida" | "fechaEntrada";
+type SortField = "producto" | "lote" | "cantidadRecibida" | "fechaEntrada";
 
 const SupplierEntries = () => {
     const [supplier, setSupplier] = useState<string>("");
@@ -89,6 +91,9 @@ const SupplierEntries = () => {
         if (sortField === "fechaEntrada") {
             return (a.fechaEntrada.getTime() - b.fechaEntrada.getTime()) * multiplier;
         }
+        if (sortField === "lote") {
+            return a.lote.localeCompare(b.lote) * multiplier;
+        }
         return a.producto.localeCompare(b.producto) * multiplier;
     });
 
@@ -116,13 +121,14 @@ const SupplierEntries = () => {
         // Datos de la tabla
         const tableData = sortedEntries.map((entry) => [
             entry.producto,
+            entry.lote,
             entry.cantidadRecibida.toString(),
             format(entry.fechaEntrada, "dd/MM/yyyy", { locale: es })
         ]);
 
         autoTable(doc, {
             startY: 52,
-            head: [["Producto", "Cantidad Recibida", "Fecha de Entrada"]],
+            head: [["Producto", "Lote", "Cantidad Recibida", "Fecha de Entrada"]],
             body: tableData,
             styles: {
                 fontSize: 9,
@@ -294,6 +300,17 @@ const SupplierEntries = () => {
                                         <Button
                                             variant="ghost"
                                             size="sm"
+                                            onClick={() => handleSort("lote")}
+                                            className="font-semibold"
+                                        >
+                                            Lote
+                                            <ArrowUpDown className="ml-2 h-4 w-4" />
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
                                             onClick={() => handleSort("cantidadRecibida")}
                                             className="font-semibold"
                                         >
@@ -318,6 +335,7 @@ const SupplierEntries = () => {
                                 {sortedEntries.map((entry, idx) => (
                                     <TableRow key={idx}>
                                         <TableCell className="font-medium">{entry.producto}</TableCell>
+                                        <TableCell>{entry.lote}</TableCell>
                                         <TableCell className="font-semibold text-primary">
                                             {entry.cantidadRecibida}
                                         </TableCell>
