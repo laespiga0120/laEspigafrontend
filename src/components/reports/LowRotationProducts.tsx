@@ -90,12 +90,6 @@ const LowRotationProducts = () => {
         toast.success(`Exportando ${filename}...`);
     };
 
-    const handleExportExcel = () => {
-        if (!dateFrom) return;
-        const filename = `Productos_BajaRotacion_${format(dateFrom, "yyyy-MM-dd")}.xlsx`;
-        toast.success(`Exportando ${filename}...`);
-    };
-
     return (
         <div className="bg-card/60 backdrop-blur-sm border-2 border-border/50 rounded-xl lg:rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8">
             {/* Filtros */}
@@ -203,10 +197,6 @@ const LowRotationProducts = () => {
                             <FileDown className="w-4 h-4" />
                             Exportar PDF
                         </Button>
-                        <Button variant="outline" onClick={handleExportExcel} className="gap-2">
-                            <FileSpreadsheet className="w-4 h-4" />
-                            Exportar Excel
-                        </Button>
                     </div>
 
                     {/* Tabla */}
@@ -271,5 +261,6 @@ const LowRotationProducts = () => {
         </div>
     );
 };
+
 
 export default LowRotationProducts;
