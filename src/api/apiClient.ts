@@ -1,6 +1,6 @@
 // apiClient.ts - Cliente API con manejo de errores mejorado
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "la-espigafrontend.vercel.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://laespiga-684242e27541.herokuapp.com";
 
 // Interfaz para errores de ubicación ocupada
 export interface UbicacionOcupadaError {
