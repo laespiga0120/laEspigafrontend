@@ -61,9 +61,10 @@ export async function apiRequest<T>(
     const response = await fetch(finalUrl, config);
 
     // Manejo de sesión expirada (401/403)
-    if (response.status === 401 || response.status === 403) {
+    // EXCEPCIÓN: No redirigir si el error viene del endpoint de login (credenciales inválidas)
+    if ((response.status === 401 || response.status === 403) && !endpoint.includes("/auth/login")) {
       localStorage.removeItem("token");
-      window.location.href = "/auth/login";
+      window.location.href = "/auth";
       throw new Error("Sesión expirada. Por favor inicie sesión nuevamente.");
     }
 
