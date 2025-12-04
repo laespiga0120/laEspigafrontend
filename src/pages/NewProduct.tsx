@@ -352,7 +352,7 @@ const NewProduct = () => {
                       name="stock"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Stock *</FormLabel>
+                          <FormLabel>Stock</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -370,7 +370,7 @@ const NewProduct = () => {
                       name="stockMinimo"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Stock mínimo *</FormLabel>
+                          <FormLabel>Stock mínimo</FormLabel>
                           <FormControl>
                             <Input
                               type="number"

@@ -135,7 +135,7 @@ const ForgotPassword = () => {
                             <img src={logo} alt="La Espiga" className="w-12 h-12 object-contain" />
                         </div>
                         <h1 className="text-2xl font-playfair font-bold text-foreground text-center">
-                            {step === 1 && "Recuperar Cuenta"}
+                            {step === 1 && "Cambia tu contraseña"}
                             {step === 2 && "Verificación"}
                             {step === 3 && "Nueva Contraseña"}
                         </h1>

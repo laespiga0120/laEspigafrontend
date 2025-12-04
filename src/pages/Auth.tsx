@@ -64,6 +64,8 @@ const Auth = () => {
 
         navigate("/", { replace: true }); // Redirigir al dashboard
       } else {
+        setUsername("");
+        setPassword("");
         setErrors({
           ...newErrors,
           general: response.message || "Error de autenticación",
@@ -78,32 +80,30 @@ const Auth = () => {
       console.error("Error en login:", error);
 
       let description = "No se pudo conectar al servidor";
-      let title = "Error del servidor";
+      let title = "Error de autenticación";
 
       if (error?.message) {
-        const msg = error.message;
+        description = error.message;
         try {
-          const parsed = JSON.parse(msg);
-          const serverMsg = parsed?.message || parsed?.error || "";
-          if (serverMsg) {
-            // Normalize common server messages about invalid credentials
-            const lower = serverMsg.toLowerCase();
-            if (
-              lower.includes("credencial") ||
-              lower.includes("credenciales") ||
-              lower.includes("invalid")
-            ) {
-              description = "Usuario o contraseña incorrectos";
-              title = "Error de autenticación";
-            } else {
-              description = serverMsg;
-            }
-          } else {
-            description = msg;
+          const parsed = JSON.parse(description);
+          if (parsed && (parsed.message || parsed.error)) {
+            description = parsed.message || parsed.error;
           }
         } catch {
-          description = msg;
+          // Ignore JSON parse error, use original message
         }
+      }
+
+      const lower = description.toLowerCase();
+      if (
+        lower.includes("credencial") ||
+        lower.includes("invalid") ||
+        lower.includes("incorrect") ||
+        lower.includes("usuario o contraseña")
+      ) {
+        description = "Usuario o contraseña incorrectos";
+        setUsername("");
+        setPassword("");
       }
 
       setErrors({ ...newErrors, general: description });
@@ -205,7 +205,7 @@ const Auth = () => {
                 to="/forgot-password"
                 className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
               >
-                ¿Olvidó su contraseña?
+                ¿Olvidaste tu contraseña? ¿Deseas cambiar tu contraseña actual?
               </Link>
             </div>
           </form>

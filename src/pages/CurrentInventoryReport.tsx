@@ -79,10 +79,7 @@ const CurrentInventoryReport = () => {
                     queryParams.append("marca", searchMarca.trim());
                 }
                 
-                // Filtro Stock Bajo
-                if (showLowStock) {
-                    queryParams.append("stockBajoMinimo", "true");
-                }
+                // 🔹 NO enviamos stockBajoMinimo al backend - filtraremos en el frontend
 
                 const data = await apiRequest<ReporteInventarioItem[]>(
                     `/api/v1/reportes/stock-actual?${queryParams.toString()}`
@@ -104,10 +101,15 @@ const CurrentInventoryReport = () => {
         }, 500);
 
         return () => clearTimeout(timeoutId);
-    }, [selectedCategory, searchMarca, showLowStock]);
+    }, [selectedCategory, searchMarca]); // 🔹 showLowStock NO está aquí - solo filtra en el frontend
+
+    // 🔹 Filtrado de stock bajo en el frontend
+    const filteredProducts = showLowStock 
+        ? products.filter(p => p.stockDisponible <= p.stockMinimo)
+        : products;
 
     // Lógica de ordenamiento en cliente
-    const sortedProducts = [...products].sort((a, b) => {
+    const sortedProducts = [...filteredProducts].sort((a, b) => {
         const multiplier = sortDirection === "asc" ? 1 : -1;
         
         let aValue: any = a[sortField];
