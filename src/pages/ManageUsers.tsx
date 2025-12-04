@@ -163,6 +163,12 @@ const ManageUsers = () => {
       } catch (e) {
         msg = error.message || msg;
       }
+
+      // En producción, los errores de duplicidad a veces retornan 500
+      if (msg.includes("500") || msg.toLowerCase().includes("internal server error")) {
+        msg = "Error del servidor. Es posible que el nombre de usuario ya esté en uso.";
+      }
+
       toast.error(msg);
     }
   };
