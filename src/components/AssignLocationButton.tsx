@@ -126,8 +126,18 @@ const AssignLocationButton = ({ onLocationSelect, selectedText }: Props) => {
       setDescripcion("");
       setView("main");
     } catch (error: any) {
-      const errorData = JSON.parse(error.message || "{}");
-      toast.error(errorData.error || "No se pudo crear la repisa.");
+      let errorMessage = "No se pudo crear la repisa.";
+      // Intentamos parsear si es JSON, si no, usamos el mensaje directo
+      try {
+        const errorData = JSON.parse(error.message || "{}");
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (e) {
+        // Si falla el parseo, es probable que sea texto plano (ej: "Ya existe...")
+        if (error.message) {
+          errorMessage = error.message;
+        }
+      }
+      toast.error(errorMessage);
     }
   };
 
